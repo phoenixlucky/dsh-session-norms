@@ -112,6 +112,50 @@ window.__ModuleLoader__.load({
 @media (max-width:720px){.sn-head{padding:12px 16px}.sn-body{padding:4px 16px 40px}.sn-row{grid-template-columns:1fr;gap:6px}.sn-side{flex-direction:row;align-items:center;gap:8px}}
 `
 
+    /**
+     * Typography of the Chat view's rendered Markdown.
+     *
+     * The built-in renderer owns the DOM, so this layer only restates spacing and
+     * scale: the product stylesheet sets `32px` heading gaps, `16px` paragraph
+     * gaps and a `16px` code-block gap, which reads as a loose, uneven stack
+     * inside a long answer. Colours are left to the product rules, so light and
+     * dark keep following the theme; only `li::marker` is dimmed to the tertiary
+     * label colour to keep bullet text dominant.
+     *
+     * `[class*="_markdown_"]` targets the CSS-module class of the Markdown root;
+     * the trailing `[class]` keeps the override above the product rules that use
+     * `:not()` or child combinators, and `html body` adds the remaining weight.
+     */
+    const TYPOGRAPHY_CSS = `
+html body [class*="_markdown_"][class]{font-size:14px;line-height:1.72}
+html body [class*="_markdown_"][class] p{margin:.55em 0}
+html body [class*="_markdown_"][class] p:first-child{margin-top:0}
+html body [class*="_markdown_"][class] p:last-child{margin-bottom:0}
+html body [class*="_markdown_"][class] h1,
+html body [class*="_markdown_"][class] h2,
+html body [class*="_markdown_"][class] h3,
+html body [class*="_markdown_"][class] h4,
+html body [class*="_markdown_"][class] h5,
+html body [class*="_markdown_"][class] h6{margin:1.25em 0 .5em;line-height:1.35;font-weight:600;letter-spacing:0}
+html body [class*="_markdown_"][class] h1{font-size:1.42em}
+html body [class*="_markdown_"][class] h2{font-size:1.22em}
+html body [class*="_markdown_"][class] h3{font-size:1.1em}
+html body [class*="_markdown_"][class] h4{font-size:1em}
+html body [class*="_markdown_"][class] h5,
+html body [class*="_markdown_"][class] h6{font-size:.95em}
+html body [class*="_markdown_"][class] ul,
+html body [class*="_markdown_"][class] ol{margin:.55em 0;padding-left:1.35em}
+html body [class*="_markdown_"][class] li{margin-top:.22em}
+html body [class*="_markdown_"][class] li>p{margin:.15em 0}
+html body [class*="_markdown_"][class] li::marker{color:var(--dsw-alias-label-tertiary)}
+html body [class*="_markdown_"][class] li>ul,
+html body [class*="_markdown_"][class] li>ol{margin:.2em 0}
+html body [class*="_markdown_"][class] blockquote{margin:.7em 0;padding-left:.9em;border-left:2px solid var(--dsw-alias-label-caption)}
+html body [class*="_markdown_"][class] hr{margin:1.5em 0}
+html body [class*="_markdown_"][class] pre{margin:.35em 0}
+html body [class*="_markdown_"][class] table{margin:.7em 0}
+`
+
     let lang = 'en'
     let boundTranslate = null
     const langListeners = new Set()
@@ -617,6 +661,46 @@ window.__ModuleLoader__.load({
     }
 
     /**
+     * Mount the typography sheet. A `<style>` element renders no box, so the
+     * host slot keeps its layout; the rules are global by design and scoped by
+     * the Markdown root's own class.
+     *
+     * @returns A React element.
+     */
+    function TypographyStyle() {
+      return h('style', { 'data-session-norms': 'typography' }, TYPOGRAPHY_CSS)
+    }
+
+    /**
+     * Host slots that stay mounted while any Session view is on screen. The
+     * header utilities list is the primary anchor; the composer dock is the
+     * fallback for embedded layouts that hide the header.
+     */
+    const STYLE_ANCHORS = ['conversation.session.header.utilities', 'conversation.composer.dock']
+
+    /**
+     * Register the typography sheet in the first anchor the Client accepts.
+     *
+     * @param ctx Client context.
+     */
+    function installTypography(ctx) {
+      for (const name of STYLE_ANCHORS) {
+        try {
+          ctx.slots.inject(name, () => {
+            try {
+              ctx.slots.register({ name, id: 'norms-typography', order: 60 }, TypographyStyle)
+            } catch {
+              // A rejected declaration leaves the conversation as it was.
+            }
+          })
+          return
+        } catch {
+          // Try the next anchor; a missing slot must not fail activation.
+        }
+      }
+    }
+
+    /**
      * Register dictionaries, follow the locale, and add the view entry.
      *
      * @param ctx Client context.
@@ -643,6 +727,8 @@ window.__ModuleLoader__.load({
           NormsView,
         ),
       )
+
+      installTypography(ctx)
     }
 
     return { name: NAMESPACE, inject: ['slots', 'locale'], apply }

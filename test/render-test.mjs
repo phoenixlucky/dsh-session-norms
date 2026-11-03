@@ -30,7 +30,7 @@ const mod = spec.factory((id) => {
   throw new Error(`unexpected module request: ${id}`)
 })
 
-let captured
+const registrations = new Map()
 mod.apply({
   effect: (fn) => fn(),
   locale: {
@@ -42,11 +42,13 @@ mod.apply({
   slots: {
     inject: (_key, callback) => callback(),
     register: (options, component) => {
-      captured = { options, component }
+      registrations.set(options.name, { options, component })
       return () => {}
     },
   },
 })
+
+const captured = registrations.get('conversation.view')
 
 const failures = []
 const checks = []
@@ -62,6 +64,23 @@ check('slot name', captured?.options?.name === 'conversation.view', captured?.op
 check('slot id', captured?.options?.id === 'norms', captured?.options?.id)
 check('slot order', captured?.options?.order === 40, String(captured?.options?.order))
 check('label thunk returns text', typeof captured?.options?.label === 'function' && captured.options.label().length > 0)
+
+const typography = registrations.get('conversation.session.header.utilities')
+check('typography anchor registered', typography !== undefined, [...registrations.keys()].join(','))
+const sheet =
+  typography === undefined
+    ? ''
+    : ReactDOMServer.renderToStaticMarkup(React.createElement(typography.component, {}))
+        .replace(/^<style[^>]*>/, '')
+        .replace(/<\/style>$/, '')
+        // SSR markup escapes the CSS text; the browser receives it verbatim.
+        .replace(/&quot;/g, '"')
+        .replace(/&amp;/g, '&')
+check('typography renders a style element', typography !== undefined && sheet.length > 0, String(sheet.length))
+check('typography scopes to the markdown root', sheet.includes('[class*="_markdown_"]'), 'markdown root selector missing')
+check('typography avoids !important', !sheet.includes('!important'), 'override relies on !important')
+check('typography uses theme tokens only', !/#[0-9a-f]{3,8}\b/i.test(sheet), 'literal color found')
+check('typography normalizes list rhythm', /li\{margin-top:\.22em\}/.test(sheet), 'list rule missing')
 
 const render = (props) =>
   ReactDOMServer.renderToStaticMarkup(React.createElement(captured.component, props)).replace(/<style>[\s\S]*?<\/style>/g, '')

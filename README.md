@@ -4,13 +4,17 @@
 按「轮次」分组，逐条显示用户消息、助手回复与工具调用（名称、参数、结果状态、时间），
 并提供「复制 Markdown」，方便导出或贴到文档里。
 
+同时按同一套规范统一「对话」页里 Markdown 的排版观感（标题层级、段落与列表节奏、
+代码块、引用、表格），让长回复读起来是一篇连贯的文档，而不是松散的段落堆叠。
+
 Adds a conversation view tab that lays the current session out in one consistent
 format: turns as sections, then every user message, assistant reply and tool call
 with its arguments, result status and time. A **Copy Markdown** button exports the
-same transcript as Markdown.
+same transcript as Markdown. The same standard also normalizes the Markdown
+typography of the Chat view (headings, paragraphs, lists, code, quotes, tables).
 
 - 包名 / package: `dsh-session-norms`
-- 版本 / version: `1.0.0`
+- 版本 / version: `1.1.0`
 - 许可证 / license: MIT
 
 ## 安装 / Install
@@ -34,6 +38,8 @@ dsh plugin --profile desktop add E:\path\to\dsh-session-norms
 1. 打开任意会话，点会话上方的 **规范视图** 标签页。
 2. 顶部显示轮次、消息、工具调用、错误数量；正文按「第 N 轮」分组。
 3. 超长消息与工具结果默认折叠，点「展开全文」查看；点「复制 Markdown」导出整份记录。
+4. 「对话」页本身不需要切换：插件挂载后，Markdown 正文的标题、段落、列表、代码块、
+   引用与表格即按统一规则呈现（深浅色都跟随主题变量）。
 
 ## 结构 / Layout
 
@@ -49,6 +55,11 @@ dsh plugin --profile desktop add E:\path\to\dsh-session-norms
 - 增量：汇总跟随已提交的会话事件（`turn/start`、`user/message`、`assistant/message`、
   `tool/call`、`tool/result`、`turn/end`），随回合推进自动刷新。
 - 有界：最多保留最近 200 行，单条消息文本最多 3000 字符，超出时在视图底部提示。
+- 排版层：只注入样式，不接管渲染器——不注册 `conversation.chat.node` 的 keyed cell，
+  因此 Markdown 渲染、工具行、助手操作按钮和主题切换都保持内置行为。样式挂载在
+  `conversation.session.header.utilities`（嵌入布局时回退到 `conversation.composer.dock`），
+  规则作用域为 Markdown 根节点的 CSS Modules 类（`[class*="_markdown_"]`），
+  深浅色全部取自 `--dsw-alias-*` 主题变量。
 - 跟随主题：颜色全部取自 `--dsw-alias-*` 主题变量，自动适配浅色/深色；
   文案跟随界面语言（中文 / English）。
 
