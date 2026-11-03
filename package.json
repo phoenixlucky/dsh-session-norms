@@ -1,0 +1,66 @@
+{
+  "name": "dsh-session-norms",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Normalized transcript view: renders every turn, message and tool call of the current Session in one consistent, copyable format.",
+  "icon": "icon.svg",
+  "author": "phoenixlucky",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/phoenixlucky/dsh-session-norms.git"
+  },
+  "homepage": "https://github.com/phoenixlucky/dsh-session-norms#readme",
+  "bugs": {
+    "url": "https://github.com/phoenixlucky/dsh-session-norms/issues"
+  },
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "deepseek-harness",
+    "session",
+    "transcript",
+    "conversation-view",
+    "markdown",
+    "export"
+  ],
+  "engines": {
+    "dsh": ">=0.2.2-alpha.2 <0.3.0-0"
+  },
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "index.js",
+    "client.js",
+    "cordis.patch.yml",
+    "locale/*.json",
+    "icon.svg",
+    "README.md",
+    "LICENSE"
+  ],
+  "dsh": {
+    "bundle": { "patch": "./cordis.patch.yml" },
+    "compatibility": {
+      "dshReleases": {
+        "0.2.2-alpha.2": "compatible"
+      }
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-conversation",
+        "@deepseek-ai/dsh-client-locale"
+      ]
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
