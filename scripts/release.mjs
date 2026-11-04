@@ -104,6 +104,11 @@ function isNewer(candidate, current) {
   return candidate !== current
 }
 
+/** Escape a literal string for use in a regular expression. */
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
 const manifestPath = path.join(root, 'package.json')
 const readmePath = path.join(root, 'README.md')
 const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'))
@@ -160,17 +165,22 @@ try {
   }
 
   step('Version files')
+  const readme = readFileSync(readmePath, 'utf8')
+  // The git install examples pin a tag, so they follow the tag this release
+  // makes; leaving them behind would advertise a version that is no longer new.
+  const pin = new RegExp(`(#v)${escapeRegExp(currentVersion)}(?![0-9A-Za-z.-])`, 'g')
+  const pins = (readme.match(pin) ?? []).length
   const bumpedManifest = readFileSync(manifestPath, 'utf8').replace(
     /("version":\s*")[^"]+(")/,
     `$1${targetVersion}$2`,
   )
-  const bumpedReadme = readFileSync(readmePath, 'utf8').replace(
-    /(版本 \/ version: `)[^`]+(`)/,
-    `$1${targetVersion}$2`,
-  )
+  const bumpedReadme = readme
+    .replace(/(版本 \/ version: `)[^`]+(`)/, `$1${targetVersion}$2`)
+    .replace(pin, `$1${targetVersion}`)
   if (dryRun) {
     console.log(`package.json  "version": "${currentVersion}" -> "${targetVersion}"`)
     console.log(`README.md     版本 / version: \`${currentVersion}\` -> \`${targetVersion}\``)
+    console.log(`README.md     ${pins} git tag example(s) v${currentVersion} -> v${targetVersion}`)
   } else {
     if (!bumpedReadme.includes(`版本 / version: \`${targetVersion}\``)) {
       throw new Error('README.md has no "版本 / version" line to update')
