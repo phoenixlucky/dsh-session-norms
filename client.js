@@ -163,18 +163,39 @@ html body [class*="_markdown_"][class] li>ol{margin:.2em 0}
 html body [class*="_markdown_"][class] blockquote{margin:.7em 0;padding-left:.9em;border-left:2px solid var(--dsw-alias-label-caption);color:var(--dsw-alias-label-secondary)}
 html body [class*="_markdown_"][class] hr{margin:1.5em 0}
 html body [class*="_markdown_"][class] pre{margin:.35em 0}
-html body [class*="_markdown_"][class] :where([class*="_tableScroll_"]){min-width:0;max-width:100%;overflow-x:auto;overscroll-behavior-x:contain}
+html body [class*="_markdown_"][class] :where([class*="_tableScroll_"]){width:100%;container-type:inline-size;min-width:0;max-width:100%;overflow-x:auto;overscroll-behavior-x:contain}
 html body [class*="_markdown_"][class] :where([class*="_tableScroll_"][class*="md-table-wide"]){overflow-x:auto;padding-bottom:0}
 html body [class*="_markdown_"][class] table{width:max-content;max-width:100%;table-layout:auto;border-collapse:collapse;margin:.8em 0;font-size:.94em}
 html body [class*="_markdown_"][class] thead th{background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-secondary);font-weight:600;border-bottom:1px solid var(--dsw-alias-border-l2)}
-html body [class*="_markdown_"][class] :where(th,td){min-width:6.5em;max-width:none;padding:8px 12px;text-align:start;vertical-align:top;border-bottom:.5px solid var(--dsw-alias-border-l1);overflow-wrap:anywhere}
+html body [class*="_markdown_"][class] :where(th,td){min-width:7.5em;max-width:none;padding:8px 12px;text-align:start;vertical-align:top;border-bottom:.5px solid var(--dsw-alias-border-l1);overflow-wrap:anywhere}
 html body [class*="_markdown_"][class] tbody tr:nth-child(even){background:color-mix(in srgb,var(--dsw-alias-bg-layer-1) 60%,transparent)}
 html body [class*="_markdown_"][class] tbody tr:last-child :where(td){border-bottom:none}
 html body [class*="_markdown_"][class] :where(th,td):first-child{padding-left:12px}
 html body [class*="_markdown_"][class] :where(th,td):last-child{padding-right:12px}
 @media (max-width:720px){
 html body [class*="_markdown_"][class] table{font-size:.9em}
-html body [class*="_markdown_"][class] :where(th,td){min-width:5em;padding:6px 9px}
+html body [class*="_markdown_"][class] :where(th,td){min-width:6em;padding:6px 9px}
+}
+/*
+ * A two-column table is a definition list: it always takes the reading width
+ * so it lines up with the composer. Three or more columns cannot be squeezed
+ * into a narrow column without becoming unreadable, so below 600px they become
+ * labeled cards instead.
+ */
+html body [class*="_markdown_"][class] table[data-sn-cols="1"],
+html body [class*="_markdown_"][class] table[data-sn-cols="2"]{width:100%}
+@container (max-width:600px){
+html body [class*="_markdown_"][class] table[data-sn-cards="ready"]{display:block;width:100%;max-width:100%;border-collapse:separate;border-spacing:0;margin:.7em 0;font-size:.95em}
+html body [class*="_markdown_"][class] table[data-sn-cards="ready"] thead{display:none}
+html body [class*="_markdown_"][class] table[data-sn-cards="ready"] tbody{display:block}
+html body [class*="_markdown_"][class] table[data-sn-cards="ready"] tbody tr{display:block;margin:0 0 8px;padding:8px 12px 9px;border:1px solid var(--dsw-alias-border-l1);border-radius:var(--dsw-radius-md);background:var(--dsw-alias-bg-layer-1)}
+html body [class*="_markdown_"][class] table[data-sn-cards="ready"] tbody tr:last-child{margin-bottom:0}
+html body [class*="_markdown_"][class] table[data-sn-cards="ready"] tbody td,
+html body [class*="_markdown_"][class] table[data-sn-cards="ready"] tbody td:first-child,
+html body [class*="_markdown_"][class] table[data-sn-cards="ready"] tbody td:last-child{display:grid;grid-template-columns:5.2em minmax(0,1fr);gap:10px;min-width:0;max-width:none;padding:3px 0;border:0;text-align:start;vertical-align:top}
+html body [class*="_markdown_"][class] table[data-sn-cards="ready"] tbody td::before{content:attr(data-sn-label);color:var(--dsw-alias-label-tertiary);font-weight:600;font-size:.9em;line-height:1.75;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+html body [class*="_markdown_"][class] table[data-sn-cards="ready"] tbody td:not([data-sn-label]){display:block;padding-left:0}
+html body [class*="_markdown_"][class] table[data-sn-cards="ready"] tbody td:not([data-sn-label])::before{content:none}
 }
 /* Copy-as-Markdown action, sized like the built-in icon actions beside it. */
 .sn-md-copy{box-sizing:border-box;flex:none;display:inline-flex;align-items:center;justify-content:center;width:calc(28px + var(--dsh-content-font-delta,0px));height:calc(28px + var(--dsh-content-font-delta,0px));padding:6px;border:0;border-radius:var(--dsw-radius-sm);background:0 0;color:var(--dsw-alias-label-tertiary);cursor:pointer;transition:background .12s ease,color .12s ease}
@@ -844,13 +865,76 @@ html body [class*="_markdown_"][class] :where(th,td){min-width:5em;padding:6px 9
     }
 
     /**
-     * Mount the typography sheet. A `<style>` element renders no box, so the
-     * host slot keeps its layout; the rules are global by design and scoped by
-     * the Markdown root's own class.
+     * Copy each table header onto its cells and record the column count.
+     *
+     * The card layout used in narrow reading columns needs a visible label per
+     * value, but the Markdown renderer owns the table DOM and only emits a
+     * header row. This observes the transcript and adds attributes only; it
+     * never moves, replaces or re-renders product nodes, and re-running it is
+     * idempotent. Two-column tables keep their header and simply take the
+     * reading width, so cards are only marked for three or more columns.
+     */
+    function useTableLabels() {
+      React.useEffect(() => {
+        if (typeof document === 'undefined' || typeof MutationObserver !== 'function') return undefined
+        let timer = 0
+        const label = (table) => {
+          const heads = table.querySelectorAll('thead th')
+          if (heads.length === 0) return
+          const columns = String(heads.length)
+          if (table.getAttribute('data-sn-cols') !== columns) table.setAttribute('data-sn-cols', columns)
+          let labelled = 0
+          for (const row of table.querySelectorAll('tbody tr')) {
+            const cells = row.children
+            for (let index = 0; index < cells.length; index += 1) {
+              const head = heads[index]
+              const text =
+                head === undefined || head.textContent === null
+                  ? ''
+                  : head.textContent.replace(/\s+/g, ' ').trim().slice(0, 24)
+              const cell = cells[index]
+              if (text === '') {
+                if (cell.hasAttribute('data-sn-label')) cell.removeAttribute('data-sn-label')
+                continue
+              }
+              labelled += 1
+              if (cell.getAttribute('data-sn-label') !== text) cell.setAttribute('data-sn-label', text)
+            }
+          }
+          if (labelled > 0 && heads.length >= 3) {
+            if (table.getAttribute('data-sn-cards') !== 'ready') table.setAttribute('data-sn-cards', 'ready')
+          } else if (table.hasAttribute('data-sn-cards')) {
+            table.removeAttribute('data-sn-cards')
+          }
+        }
+        const scan = () => {
+          timer = 0
+          for (const table of document.querySelectorAll('[class*="_markdown_"] table')) label(table)
+        }
+        const schedule = () => {
+          if (timer !== 0) return
+          timer = setTimeout(scan, 60)
+        }
+        scan()
+        const observer = new MutationObserver(schedule)
+        observer.observe(document.body, { childList: true, subtree: true })
+        return () => {
+          observer.disconnect()
+          if (timer !== 0) clearTimeout(timer)
+        }
+      }, [])
+    }
+
+    /**
+     * Mount the typography sheet and label tables for the narrow card layout.
+     * A `<style>` element renders no box, so the host slot keeps its layout;
+     * the rules are global by design and scoped by the Markdown root's own
+     * class.
      *
      * @returns A React element.
      */
     function TypographyStyle() {
+      useTableLabels()
       return h('style', { 'data-session-norms': 'typography' }, TYPOGRAPHY_CSS)
     }
 

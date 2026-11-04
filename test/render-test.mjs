@@ -86,7 +86,19 @@ check(
   sheet.includes('table{width:max-content;max-width:100%'),
   'table width rule missing',
 )
-check('typography lets table cells shrink', sheet.includes('min-width:6.5em;max-width:none'), 'cell width rule missing')
+check('typography lets table cells shrink', sheet.includes('min-width:7.5em;max-width:none'), 'cell width rule missing')
+check(
+  'typography switches wide tables to labeled cards in narrow columns',
+  sheet.includes('@container (max-width:600px)') &&
+    sheet.includes('table[data-sn-cards="ready"]') &&
+    sheet.includes('content:attr(data-sn-label)'),
+  'narrow table card rules missing',
+)
+check(
+  'typography keeps two-column tables tabular at full width',
+  sheet.includes('table[data-sn-cols="2"]{width:100%}'),
+  'two-column narrow width rule missing',
+)
 check(
   'typography keeps wide tables inside their own scroller',
   sheet.includes('_tableScroll_') && sheet.includes('overscroll-behavior-x:contain'),
