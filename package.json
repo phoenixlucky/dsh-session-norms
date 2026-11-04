@@ -3,6 +3,10 @@
   "version": "1.2.2",
   "type": "module",
   "description": "Normalized transcript view: renders every turn, message and tool call of the current Session in one consistent, copyable format.",
+  "scripts": {
+    "test": "node test/render-test.mjs",
+    "release": "node scripts/release.mjs"
+  },
   "icon": "icon.svg",
   "author": "phoenixlucky",
   "license": "MIT",

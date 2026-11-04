@@ -24,19 +24,34 @@ tables fit the reading column, and each settled assistant reply gains a
 
 ## 安装 / Install
 
-插件市场收录后，可在「插件」页直接安装。也可以按固定提交从 Git 安装：
+从 npm 安装。插件页「添加插件」里输入包名即可，也可以直接跑命令：
 
 ```sh
-dsh plugin --profile desktop add git+https://github.com/phoenixlucky/dsh-session-norms.git#<commit>
+dsh plugin --profile desktop add dsh-session-norms
 ```
 
-本地开发目录安装（Windows 使用绝对路径）：
+装好后重启 DSH，会话上方的视图标签栏里会多出「规范视图」。
+
+固定版本的 Git 安装和本地目录安装仍然可用，但它们**不参与在线更新**（见下一节）：
 
 ```sh
+# 尝鲜尚未发布的提交
+dsh plugin --profile desktop add git+https://github.com/phoenixlucky/dsh-session-norms.git#v1.2.2
+
+# 本地开发目录（Windows 使用绝对路径）
 dsh plugin --profile desktop add E:\path\to\dsh-session-norms
 ```
 
-安装后重启 DSH，会话上方的视图标签栏里会多出「规范视图」。
+## 更新 / Update
+
+只有从 npm 注册表安装的组合包可以在线更新：打开「插件」页 → 本插件详情，下面的**版本**区块列出比当前版本新的版本，点**更新到 x.y.z** 即可；工具栏的**刷新**会重新检查一遍。
+
+从 Git（`git+…`、`github:`）或本地 `link:` / 路径安装的包不显示版本区块——DSH 的更新只为注册表安装准备：它先用 `pnpm view` 问注册表有哪些新版本，再用 `pnpm add 名字@版本` 安装，没有 Git 的更新通道。这类安装按固定版本重装：
+
+```sh
+dsh plugin --profile desktop remove dsh-session-norms
+dsh plugin --profile desktop add git+https://github.com/phoenixlucky/dsh-session-norms.git#v1.2.3
+```
 
 ## 使用 / Usage
 
@@ -58,6 +73,7 @@ dsh plugin --profile desktop add E:\path\to\dsh-session-norms
 | `index.js` | 宿主侧：把会话事件折叠成规范化记录，并通过会话投影（`sessionNorms`）发给界面。 |
 | `client.js` | 浏览器侧：注册 `conversation.view` 的 `norms` 视图、已定稿助手操作行里的「复制为 Markdown」、多语言文案和排版样式。 |
 | `locale/*.json` | 插件列表里显示的标题与说明。 |
+| `scripts/release.mjs` | 维护者发版脚本：检查、测试、改版本、提交、打标签、发布、推送。 |
 
 ## 行为 / Behavior
 
@@ -103,3 +119,20 @@ node test/render-test.mjs <projection.json>    # 追加真实会话投影数据�
 
 `<projection.json>` 是 `.dsh/storages/session_projcache/sessions/` 下某个会话的缓存；
 `DSH_PROFILE_DIR` 可指定提供 react 的 profile 目录。
+
+## 发版 / Release
+
+`scripts/release.mjs` 把发版串成一条命令：确认工作区干净且在 `main`、跑上面的渲染检查、改版本号（`package.json` 与本文开头的「版本 / version」一行）、提交、打 `v<版本>` 标签、发布到 npm，最后推送提交和标签。
+
+```sh
+npm run release patch                  # 1.2.2 → 1.2.3
+npm run release minor                  # → 1.3.0
+npm run release 1.4.0                  # 指定版本
+npm run release patch -- --dry-run     # 只打印将要执行的步骤，不写文件、不发包
+```
+
+其他开关：`--no-publish`（只提交和打标签）、`--no-push`、`--skip-tests`、`--otp <code>`（npm 要求一次性密码时）、`--offline`（跳过注册表与登录检查，离线试跑时用）。
+
+脚本会在动任何文件之前检查：版本确实比当前新、`v<版本>` 标签不存在、该版本还没被发布、`npm login` 有效。发布失败时本地的提交和标签会保留，按它打印的命令补一次 `npm publish` 与 `git push --follow-tags` 即可。手工发版是同一套动作：`npm version <patch|minor|major>` → `git push --follow-tags` → `npm publish`。
+
+发布出去的包只含 `package.json` 的 `files` 白名单里的文件（`index.js`、`client.js`、`cordis.patch.yml`、`locale`、`icon.svg`、`README.md`、`LICENSE`），`scripts/` 和 `test/` 不进包。
