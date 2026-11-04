@@ -88,10 +88,8 @@ check(
 )
 check('typography lets table cells shrink', sheet.includes('min-width:7.5em;max-width:none'), 'cell width rule missing')
 check(
-  'typography switches wide tables to labeled cards in narrow columns',
-  sheet.includes('@container (max-width:600px)') &&
-    sheet.includes('table[data-sn-cards="ready"]') &&
-    sheet.includes('content:attr(data-sn-label)'),
+  'typography switches wide tables to labeled cards when needed',
+  sheet.includes('table[data-sn-cards="ready"]') && sheet.includes('content:attr(data-sn-label)'),
   'narrow table card rules missing',
 )
 check(

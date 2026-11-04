@@ -163,7 +163,7 @@ html body [class*="_markdown_"][class] li>ol{margin:.2em 0}
 html body [class*="_markdown_"][class] blockquote{margin:.7em 0;padding-left:.9em;border-left:2px solid var(--dsw-alias-label-caption);color:var(--dsw-alias-label-secondary)}
 html body [class*="_markdown_"][class] hr{margin:1.5em 0}
 html body [class*="_markdown_"][class] pre{margin:.35em 0}
-html body [class*="_markdown_"][class] :where([class*="_tableScroll_"]){width:100%;container-type:inline-size;min-width:0;max-width:100%;overflow-x:auto;overscroll-behavior-x:contain}
+html body [class*="_markdown_"][class] :where([class*="_tableScroll_"]){box-sizing:border-box;width:100%;max-width:var(--dsh-chat-content-width,748px);margin-left:auto;margin-right:auto;padding-left:0;padding-right:0;min-width:0;overflow-x:auto;overscroll-behavior-x:contain}
 html body [class*="_markdown_"][class] :where([class*="_tableScroll_"][class*="md-table-wide"]){overflow-x:auto;padding-bottom:0}
 html body [class*="_markdown_"][class] table{width:max-content;max-width:100%;table-layout:auto;border-collapse:collapse;margin:.8em 0;font-size:.94em}
 html body [class*="_markdown_"][class] thead th{background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-secondary);font-weight:600;border-bottom:1px solid var(--dsw-alias-border-l2)}
@@ -178,13 +178,12 @@ html body [class*="_markdown_"][class] :where(th,td){min-width:6em;padding:6px 9
 }
 /*
  * A two-column table is a definition list: it always takes the reading width
- * so it lines up with the composer. Three or more columns cannot be squeezed
- * into a narrow column without becoming unreadable, so below 600px they become
- * labeled cards instead.
+ * so it lines up with the composer. Three or more columns stay a table while
+ * they fit; the script that mounts this sheet measures each table and marks
+ * the ones that would overflow or read badly as labeled cards.
  */
 html body [class*="_markdown_"][class] table[data-sn-cols="1"],
 html body [class*="_markdown_"][class] table[data-sn-cols="2"]{width:100%}
-@container (max-width:600px){
 html body [class*="_markdown_"][class] table[data-sn-cards="ready"]{display:block;width:100%;max-width:100%;border-collapse:separate;border-spacing:0;margin:.7em 0;font-size:.95em}
 html body [class*="_markdown_"][class] table[data-sn-cards="ready"] thead{display:none}
 html body [class*="_markdown_"][class] table[data-sn-cards="ready"] tbody{display:block}
@@ -196,7 +195,6 @@ html body [class*="_markdown_"][class] table[data-sn-cards="ready"] tbody td:las
 html body [class*="_markdown_"][class] table[data-sn-cards="ready"] tbody td::before{content:attr(data-sn-label);color:var(--dsw-alias-label-tertiary);font-weight:600;font-size:.9em;line-height:1.75;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 html body [class*="_markdown_"][class] table[data-sn-cards="ready"] tbody td:not([data-sn-label]){display:block;padding-left:0}
 html body [class*="_markdown_"][class] table[data-sn-cards="ready"] tbody td:not([data-sn-label])::before{content:none}
-}
 /* Copy-as-Markdown action, sized like the built-in icon actions beside it. */
 .sn-md-copy{box-sizing:border-box;flex:none;display:inline-flex;align-items:center;justify-content:center;width:calc(28px + var(--dsh-content-font-delta,0px));height:calc(28px + var(--dsh-content-font-delta,0px));padding:6px;border:0;border-radius:var(--dsw-radius-sm);background:0 0;color:var(--dsw-alias-label-tertiary);cursor:pointer;transition:background .12s ease,color .12s ease}
 .sn-md-copy svg{width:calc(16px + var(--dsh-content-font-delta,0px));height:calc(16px + var(--dsh-content-font-delta,0px))}
@@ -878,7 +876,19 @@ html body [class*="_markdown_"][class] table[data-sn-cards="ready"] tbody td:not
       React.useEffect(() => {
         if (typeof document === 'undefined' || typeof MutationObserver !== 'function') return undefined
         let timer = 0
-        const label = (table) => {
+        let resize = null
+        const widths = new WeakMap()
+        const watched = new WeakSet()
+
+        /**
+         * Label one table and decide whether it must render as cards.
+         *
+         * The decision reads the table's laid-out width instead of a fixed
+         * breakpoint, so split panes, browser zoom and the reading-width control
+         * all produce the same answer: fit a table while it fits, switch to
+         * cards when it would overflow or read badly.
+         */
+        function label(table) {
           const heads = table.querySelectorAll('thead th')
           if (heads.length === 0) return
           const columns = String(heads.length)
@@ -901,12 +911,25 @@ html body [class*="_markdown_"][class] table[data-sn-cards="ready"] tbody td:not
               if (cell.getAttribute('data-sn-label') !== text) cell.setAttribute('data-sn-label', text)
             }
           }
-          if (labelled > 0 && heads.length >= 3) {
-            if (table.getAttribute('data-sn-cards') !== 'ready') table.setAttribute('data-sn-cards', 'ready')
-          } else if (table.hasAttribute('data-sn-cards')) {
-            table.removeAttribute('data-sn-cards')
+
+          const wrapper = table.closest('[class*="_tableScroll_"]')
+          if (wrapper !== null && resize !== null && !watched.has(wrapper)) {
+            watched.add(wrapper)
+            widths.set(wrapper, wrapper.clientWidth)
+            resize.observe(wrapper)
           }
+          const available = wrapper === null ? 0 : wrapper.clientWidth
+          if (labelled === 0 || heads.length < 3 || available <= 0) {
+            if (table.hasAttribute('data-sn-cards')) table.removeAttribute('data-sn-cards')
+            return
+          }
+          // Measure in table layout, so a card table does not report the width
+          // of its own stacked cells.
+          if (table.getAttribute('data-sn-cards') === 'ready') table.removeAttribute('data-sn-cards')
+          const natural = table.getBoundingClientRect().width
+          if (available < 600 || natural > available + 1) table.setAttribute('data-sn-cards', 'ready')
         }
+
         const scan = () => {
           timer = 0
           for (const table of document.querySelectorAll('[class*="_markdown_"] table')) label(table)
@@ -915,11 +938,24 @@ html body [class*="_markdown_"][class] table[data-sn-cards="ready"] tbody td:not
           if (timer !== 0) return
           timer = setTimeout(scan, 60)
         }
+        resize =
+          typeof ResizeObserver === 'function'
+            ? new ResizeObserver((entries) => {
+                for (const entry of entries) {
+                  const width = entry.contentRect.width
+                  if (widths.get(entry.target) === width) continue
+                  widths.set(entry.target, width)
+                  const table = entry.target.querySelector('table')
+                  if (table !== null) label(table)
+                }
+              })
+            : null
         scan()
         const observer = new MutationObserver(schedule)
         observer.observe(document.body, { childList: true, subtree: true })
         return () => {
           observer.disconnect()
+          if (resize !== null) resize.disconnect()
           if (timer !== 0) clearTimeout(timer)
         }
       }, [])
