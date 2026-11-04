@@ -862,31 +862,116 @@ html body [class*="_markdown_"][class] table[data-sn-cards="ready"] tbody td:not
       return h(Guard, null, h(Transcript, props))
     }
 
+    /** Reading column narrower than this cannot carry a three-column table. */
+    const CARD_BREAKPOINT = 600
+
     /**
      * Copy each table header onto its cells and record the column count.
      *
      * The card layout used in narrow reading columns needs a visible label per
      * value, but the Markdown renderer owns the table DOM and only emits a
      * header row. This observes the transcript and adds attributes only; it
-     * never moves, replaces or re-renders product nodes, and re-running it is
-     * idempotent. Two-column tables keep their header and simply take the
-     * reading width, so cards are only marked for three or more columns.
+     * never moves, replaces or re-renders product nodes. Two-column tables keep
+     * their header and simply take the reading width, so cards are only marked
+     * for three or more columns.
+     *
+     * Every pass is idempotent: a table already in the mode the decision asks
+     * for is left alone. That matters for the reader — swapping a card table
+     * back to table layout collapses it for a frame, the browser clamps the
+     * scrollport to the shorter content, and the tail the reader just scrolled
+     * to is lost even though the final layout is identical.
      */
     function useTableLabels() {
       React.useEffect(() => {
         if (typeof document === 'undefined' || typeof MutationObserver !== 'function') return undefined
-        let timer = 0
+        let frame = 0
         let resize = null
         const widths = new WeakMap()
         const watched = new WeakSet()
+        const queued = new Set()
+
+        /**
+         * Find the scrollport a table lives in, so a layout change can keep the
+         * reader's position when the product's own follow logic is at the tail.
+         *
+         * @param element Starting element.
+         * @returns The scrolling ancestor, the document scroller, or `null`.
+         */
+        function scrollportOf(element) {
+          for (let node = element === null ? null : element.parentElement; node !== null; node = node.parentElement) {
+            if (node.hasAttribute('data-conversation-scroll')) return node
+            let overflow = ''
+            try {
+              overflow = getComputedStyle(node).overflowY
+            } catch {
+              overflow = ''
+            }
+            if (overflow === 'auto' || overflow === 'scroll') return node
+          }
+          return document.scrollingElement ?? null
+        }
+
+        /**
+         * Measure the width a table needs as a table, without touching the live
+         * node. Removing `data-sn-cards` in place would be cheaper, but it
+         * collapses the table for a frame and that is exactly what moves the
+         * reader; a detached copy is invisible to the transcript.
+         *
+         * @param table Table element.
+         * @returns Needed width in CSS pixels.
+         */
+        function naturalWidth(table) {
+          const host = document.createElement('div')
+          host.setAttribute('aria-hidden', 'true')
+          host.setAttribute('data-sn-measure', '')
+          host.style.cssText =
+            'position:fixed;top:0;left:0;visibility:hidden;pointer-events:none;z-index:-1;width:max-content;max-width:none'
+          // Carry the Markdown root's class so the copy is measured under the
+          // same cell minimums and font metrics as the node it stands in for.
+          const root = table.closest('[class*="_markdown_"]')
+          if (root !== null && root.className !== '') host.className = root.className
+          const copy = table.cloneNode(true)
+          copy.removeAttribute('data-sn-cards')
+          copy.style.cssText = 'display:table;width:max-content;max-width:none;margin:0'
+          host.appendChild(copy)
+          document.body.appendChild(host)
+          const width = copy.getBoundingClientRect().width
+          host.remove()
+          return width
+        }
+
+        /**
+         * Switch one table between table and card layout.
+         *
+         * A switch changes the height of everything below the table. When the
+         * reader sits at the tail, the product pins the scrollport to the floor,
+         * so pin it again once the new height is in; elsewhere the browser's own
+         * scroll anchoring keeps the visible row still.
+         *
+         * @param table Table element.
+         * @param cards Whether the table becomes labeled cards.
+         */
+        function setCards(table, cards) {
+          const wrapper = table.closest('[class*="_tableScroll_"]')
+          const scroller = scrollportOf(wrapper ?? table)
+          const pinned = scroller !== null && scroller.scrollHeight - scroller.clientHeight - scroller.scrollTop <= 1
+          if (cards) table.setAttribute('data-sn-cards', 'ready')
+          else table.removeAttribute('data-sn-cards')
+          // Re-read the floor after the swap: the browser clamps a shrinking
+          // scrollport silently, so adding the delta would overshoot.
+          if (pinned) scroller.scrollTop = scroller.scrollHeight - scroller.clientHeight
+        }
 
         /**
          * Label one table and decide whether it must render as cards.
          *
-         * The decision reads the table's laid-out width instead of a fixed
-         * breakpoint, so split panes, browser zoom and the reading-width control
-         * all produce the same answer: fit a table while it fits, switch to
-         * cards when it would overflow or read badly.
+         * The decision reads the wrapper's width and, only when that width is
+         * inconclusive, the table's own need: a table-layout node reports
+         * horizontal overflow through its scroll width, a card node through an
+         * off-document measurement. Split panes, browser zoom and the
+         * reading-width control therefore all get the same answer.
+         *
+         * @param table Table element.
          */
         function label(table) {
           const heads = table.querySelectorAll('thead th')
@@ -919,24 +1004,50 @@ html body [class*="_markdown_"][class] table[data-sn-cards="ready"] tbody td:not
             resize.observe(wrapper)
           }
           const available = wrapper === null ? 0 : wrapper.clientWidth
-          if (labelled === 0 || heads.length < 3 || available <= 0) {
-            if (table.hasAttribute('data-sn-cards')) table.removeAttribute('data-sn-cards')
+          const cards = table.getAttribute('data-sn-cards') === 'ready'
+          let wanted = false
+          if (labelled > 0 && heads.length >= 3 && available > 0) {
+            if (available < CARD_BREAKPOINT) wanted = true
+            else if (cards) wanted = naturalWidth(table) > available + 1
+            else wanted = wrapper.scrollWidth > available + 1
+          }
+          if (wanted !== cards) setCards(table, wanted)
+        }
+
+        /**
+         * Collect the tables a mutation touched, so a frame's work stays
+         * proportional to what changed instead of the whole transcript.
+         *
+         * @param node Added or changed node.
+         */
+        function collect(node) {
+          const element = node !== null && node.nodeType === 1 ? node : node?.parentElement
+          if (element === undefined || element === null) return
+          if (element.closest('[data-sn-measure]') !== null) return
+          const table = element.closest('table')
+          if (table !== null) {
+            queued.add(table)
             return
           }
-          // Measure in table layout, so a card table does not report the width
-          // of its own stacked cells.
-          if (table.getAttribute('data-sn-cards') === 'ready') table.removeAttribute('data-sn-cards')
-          const natural = table.getBoundingClientRect().width
-          if (available < 600 || natural > available + 1) table.setAttribute('data-sn-cards', 'ready')
+          if (element.matches('[class*="_markdown_"] table')) queued.add(element)
+          for (const found of element.querySelectorAll('[class*="_markdown_"] table')) queued.add(found)
         }
 
         const scan = () => {
-          timer = 0
+          frame = 0
+          const targets = Array.from(queued)
+          queued.clear()
+          for (const table of targets) {
+            if (table.isConnected) label(table)
+          }
+        }
+        const scanAll = () => {
           for (const table of document.querySelectorAll('[class*="_markdown_"] table')) label(table)
         }
         const schedule = () => {
-          if (timer !== 0) return
-          timer = setTimeout(scan, 60)
+          if (frame !== 0 || queued.size === 0) return
+          if (typeof requestAnimationFrame === 'function') frame = requestAnimationFrame(scan)
+          else frame = setTimeout(scan, 16)
         }
         resize =
           typeof ResizeObserver === 'function'
@@ -950,13 +1061,24 @@ html body [class*="_markdown_"][class] table[data-sn-cards="ready"] tbody td:not
                 }
               })
             : null
-        scan()
-        const observer = new MutationObserver(schedule)
-        observer.observe(document.body, { childList: true, subtree: true })
+        scanAll()
+        const observer = new MutationObserver((records) => {
+          for (const record of records) {
+            if (record.type === 'characterData') collect(record.target.parentElement)
+            else if (record.type === 'childList') {
+              for (const node of record.addedNodes) collect(node)
+            }
+          }
+          schedule()
+        })
+        observer.observe(document.body, { childList: true, subtree: true, characterData: true })
         return () => {
           observer.disconnect()
           if (resize !== null) resize.disconnect()
-          if (timer !== 0) clearTimeout(timer)
+          if (frame !== 0) {
+            if (typeof cancelAnimationFrame === 'function') cancelAnimationFrame(frame)
+            else clearTimeout(frame)
+          }
         }
       }, [])
     }
