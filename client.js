@@ -21,6 +21,9 @@ window.__ModuleLoader__.load({
         copy: 'Copy Markdown',
         copied: 'Copied',
         copyFailed: 'Copy failed',
+        copyMd: 'Copy as Markdown',
+        copyMdDone: 'Markdown copied',
+        copyMdFailed: 'Copy failed',
         turnLabel: 'Turn {n}',
         roleUser: 'User',
         roleAssistant: 'Assistant',
@@ -51,6 +54,9 @@ window.__ModuleLoader__.load({
         copy: '复制 Markdown',
         copied: '已复制',
         copyFailed: '复制失败',
+        copyMd: '复制为 Markdown',
+        copyMdDone: '已复制 Markdown',
+        copyMdFailed: '复制失败',
         turnLabel: '第 {n} 轮',
         roleUser: '用户',
         roleAssistant: '助手',
@@ -113,21 +119,25 @@ window.__ModuleLoader__.load({
 `
 
     /**
-     * Typography of the Chat view's rendered Markdown.
+     * Typography of the Chat view's rendered Markdown, plus the in-chat
+     * Markdown-copy affordance.
      *
-     * The built-in renderer owns the DOM, so this layer only restates spacing and
-     * scale: the product stylesheet sets `32px` heading gaps, `16px` paragraph
-     * gaps and a `16px` code-block gap, which reads as a loose, uneven stack
-     * inside a long answer. Colours are left to the product rules, so light and
-     * dark keep following the theme; only `li::marker` is dimmed to the tertiary
-     * label colour to keep bullet text dominant.
+     * The built-in renderer owns the DOM, so this layer only restates spacing,
+     * scale and table layout. The product stylesheet gives table cells a
+     * `min(30vw, 320px)` maximum and the table `max-content` width, so a wide
+     * four-column answer grows past the reading column and the whole transcript
+     * gains a horizontal scrollbar. Here the table fills the column instead,
+     * cells may shrink and wrap, and only a genuinely wide table scrolls inside
+     * its own wrapper. Colours are left to the product rules, so light and dark
+     * keep following the theme; only `li::marker` is dimmed to the tertiary
+     * label colour and table headers get the layer-1 surface.
      *
      * `[class*="_markdown_"]` targets the CSS-module class of the Markdown root;
      * the trailing `[class]` keeps the override above the product rules that use
      * `:not()` or child combinators, and `html body` adds the remaining weight.
      */
     const TYPOGRAPHY_CSS = `
-html body [class*="_markdown_"][class]{font-size:14px;line-height:1.72}
+html body [class*="_markdown_"][class]{font-size:14px;line-height:1.72;min-width:0;max-width:100%}
 html body [class*="_markdown_"][class] p{margin:.55em 0}
 html body [class*="_markdown_"][class] p:first-child{margin-top:0}
 html body [class*="_markdown_"][class] p:last-child{margin-bottom:0}
@@ -150,10 +160,29 @@ html body [class*="_markdown_"][class] li>p{margin:.15em 0}
 html body [class*="_markdown_"][class] li::marker{color:var(--dsw-alias-label-tertiary)}
 html body [class*="_markdown_"][class] li>ul,
 html body [class*="_markdown_"][class] li>ol{margin:.2em 0}
-html body [class*="_markdown_"][class] blockquote{margin:.7em 0;padding-left:.9em;border-left:2px solid var(--dsw-alias-label-caption)}
+html body [class*="_markdown_"][class] blockquote{margin:.7em 0;padding-left:.9em;border-left:2px solid var(--dsw-alias-label-caption);color:var(--dsw-alias-label-secondary)}
 html body [class*="_markdown_"][class] hr{margin:1.5em 0}
 html body [class*="_markdown_"][class] pre{margin:.35em 0}
-html body [class*="_markdown_"][class] table{margin:.7em 0}
+html body [class*="_markdown_"][class] :where([class*="_tableScroll_"]){min-width:0;max-width:100%;overflow-x:auto;overscroll-behavior-x:contain}
+html body [class*="_markdown_"][class] :where([class*="_tableScroll_"][class*="md-table-wide"]){overflow-x:auto;padding-bottom:0}
+html body [class*="_markdown_"][class] table{width:max-content;max-width:100%;table-layout:auto;border-collapse:collapse;margin:.8em 0;font-size:.94em}
+html body [class*="_markdown_"][class] thead th{background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-secondary);font-weight:600;border-bottom:1px solid var(--dsw-alias-border-l2)}
+html body [class*="_markdown_"][class] :where(th,td){min-width:6.5em;max-width:none;padding:8px 12px;text-align:start;vertical-align:top;border-bottom:.5px solid var(--dsw-alias-border-l1);overflow-wrap:anywhere}
+html body [class*="_markdown_"][class] tbody tr:nth-child(even){background:color-mix(in srgb,var(--dsw-alias-bg-layer-1) 60%,transparent)}
+html body [class*="_markdown_"][class] tbody tr:last-child :where(td){border-bottom:none}
+html body [class*="_markdown_"][class] :where(th,td):first-child{padding-left:12px}
+html body [class*="_markdown_"][class] :where(th,td):last-child{padding-right:12px}
+@media (max-width:720px){
+html body [class*="_markdown_"][class] table{font-size:.9em}
+html body [class*="_markdown_"][class] :where(th,td){min-width:5em;padding:6px 9px}
+}
+/* Copy-as-Markdown action, sized like the built-in icon actions beside it. */
+.sn-md-copy{box-sizing:border-box;flex:none;display:inline-flex;align-items:center;justify-content:center;width:calc(28px + var(--dsh-content-font-delta,0px));height:calc(28px + var(--dsh-content-font-delta,0px));padding:6px;border:0;border-radius:var(--dsw-radius-sm);background:0 0;color:var(--dsw-alias-label-tertiary);cursor:pointer;transition:background .12s ease,color .12s ease}
+.sn-md-copy svg{width:calc(16px + var(--dsh-content-font-delta,0px));height:calc(16px + var(--dsh-content-font-delta,0px))}
+@media (hover:hover){.sn-md-copy:hover{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-secondary)}}
+.sn-md-copy:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:2px}
+.sn-md-copy[data-state=done]{color:var(--dsw-alias-state-success-primary)}
+.sn-md-copy[data-state=failed]{color:var(--dsw-alias-state-error-primary)}
 `
 
     let lang = 'en'
@@ -353,6 +382,160 @@ html body [class*="_markdown_"][class] table{margin:.7em 0}
       return clipboard.writeText(text).then(
         () => true,
         () => false,
+      )
+    }
+
+    /**
+     * Join the text blocks of one assistant step as Markdown source.
+     *
+     * Text blocks are exactly what the model wrote, so tables, lists, code
+     * fences and quotes survive the round trip; reasoning and tool calls are
+     * presentation sides of the turn and are not part of the answer.
+     *
+     * @param blocks Assistant content blocks.
+     * @returns Trimmed Markdown, or an empty string.
+     */
+    function blocksToMarkdown(blocks) {
+      if (!Array.isArray(blocks)) return ''
+      const parts = []
+      for (const block of blocks) {
+        if (block === undefined || block === null || typeof block !== 'object') continue
+        const kind = typeof block.kind === 'string' ? block.kind : block.type
+        if (kind !== 'text' || typeof block.text !== 'string') continue
+        const text = block.text.trim()
+        if (text !== '') parts.push(text)
+      }
+      return parts.join('\n\n')
+    }
+
+    /**
+     * Markdown source of the settled assistant reply carrying `messageId`.
+     *
+     * @param snapshot Chat snapshot read through the `useChat` standard prop.
+     * @param messageId Message identity handed to the action slot.
+     * @returns Markdown, or an empty string when the message is not loaded.
+     */
+    function markdownOfMessage(snapshot, messageId) {
+      if (messageId === '' || snapshot === undefined || snapshot === null) return ''
+      const nodes = snapshot.nodes
+      if (nodes === undefined || nodes === null || typeof nodes.values !== 'function') return ''
+      for (const node of nodes.values()) {
+        if (node === undefined || node === null || node.kind !== 'assistant-step') continue
+        const data = node.data
+        if (data === undefined || data === null) continue
+        const finalNode = data.finalNode
+        const id =
+          finalNode !== undefined && finalNode !== null && typeof finalNode.messageId === 'string'
+            ? finalNode.messageId
+            : ''
+        if (id !== messageId) continue
+        const blocks = finalNode !== undefined && finalNode !== null && Array.isArray(finalNode.blocks)
+          ? finalNode.blocks
+          : data.blocks
+        return blocksToMarkdown(blocks)
+      }
+      return ''
+    }
+
+    /**
+     * Copy-as-Markdown icon.
+     *
+     * @returns A React element.
+     */
+    function markdownIcon() {
+      return h(
+        'svg',
+        { viewBox: '0 0 16 16', 'aria-hidden': 'true', focusable: 'false' },
+        [
+          h('path', {
+            key: 'letter',
+            d: 'M2.2 11.8V4.2l2.6 3.1 2.6-3.1v7.6',
+            fill: 'none',
+            stroke: 'currentColor',
+            strokeWidth: 1.35,
+            strokeLinecap: 'round',
+            strokeLinejoin: 'round',
+          }),
+          h('path', {
+            key: 'arrow',
+            d: 'M12.3 4.2v7.6m0 0L10.2 9.7m2.1 2.1 2.1-2.1',
+            fill: 'none',
+            stroke: 'currentColor',
+            strokeWidth: 1.35,
+            strokeLinecap: 'round',
+            strokeLinejoin: 'round',
+          }),
+        ],
+      )
+    }
+
+    /**
+     * Success icon shown briefly after the Markdown lands on the clipboard.
+     *
+     * @returns A React element.
+     */
+    function checkIcon() {
+      return h('svg', { viewBox: '0 0 16 16', 'aria-hidden': 'true', focusable: 'false' }, [
+        h('path', {
+          key: 'check',
+          d: 'M3.4 8.3l3 3 6.2-6.4',
+          fill: 'none',
+          stroke: 'currentColor',
+          strokeWidth: 1.6,
+          strokeLinecap: 'round',
+          strokeLinejoin: 'round',
+        }),
+      ])
+    }
+
+    /**
+     * Slot entry in the settled assistant action row: copy the reply as Markdown.
+     *
+     * The `useChat` standard prop resolves the message body from the loaded
+     * transcript, so the clipboard receives the original source rather than the
+     * rendered text. Only settled answers carry a `messageId`, which is why the
+     * action disappears for interrupted or still-streaming output.
+     *
+     * @param props Slot props.
+     * @returns A React element, or `null` when there is nothing to copy.
+     */
+    function CopyMarkdownAction(props) {
+      const t = useT()
+      const messageId = props !== undefined && typeof props.messageId === 'string' ? props.messageId : ''
+      const useChat = props !== undefined && typeof props.useChat === 'function' ? props.useChat : null
+      const markdown =
+        useChat === null ? '' : useChat((snapshot) => markdownOfMessage(snapshot, messageId))
+      const [state, setState] = React.useState('idle')
+
+      React.useEffect(() => {
+        if (state === 'idle') return undefined
+        const timer = setTimeout(() => setState('idle'), 1800)
+        return () => clearTimeout(timer)
+      }, [state])
+
+      if (typeof markdown !== 'string' || markdown.trim() === '') return null
+
+      const label =
+        state === 'done' ? t('copyMdDone') : state === 'failed' ? t('copyMdFailed') : t('copyMd')
+      const onCopy = () => {
+        writeClipboard(markdown).then(
+          (ok) => setState(ok ? 'done' : 'failed'),
+          () => setState('failed'),
+        )
+      }
+
+      return h(
+        'button',
+        {
+          type: 'button',
+          className: 'sn-md-copy',
+          'data-state': state === 'idle' ? undefined : state,
+          'data-session-norms': 'copy-markdown',
+          title: label,
+          'aria-label': label,
+          onClick: onCopy,
+        },
+        state === 'done' ? checkIcon() : markdownIcon(),
       )
     }
 
@@ -678,6 +861,9 @@ html body [class*="_markdown_"][class] table{margin:.7em 0}
      */
     const STYLE_ANCHORS = ['conversation.session.header.utilities', 'conversation.composer.dock']
 
+    /** Settled assistant action row owned by the Chat view. */
+    const CHAT_ACTIONS_SLOT = 'conversation.chat.assistant-actions'
+
     /**
      * Register the typography sheet in the first anchor the Client accepts.
      *
@@ -697,6 +883,32 @@ html body [class*="_markdown_"][class] table{margin:.7em 0}
         } catch {
           // Try the next anchor; a missing slot must not fail activation.
         }
+      }
+    }
+
+    /**
+     * Add the Markdown-copy button to the settled assistant action row.
+     *
+     * The Chat view renders that row itself (next to its own copy and branch
+     * buttons), so a rejected registration leaves the row untouched instead of
+     * failing activation on a Client that does not declare the list.
+     *
+     * @param ctx Client context.
+     */
+    function installChatActions(ctx) {
+      try {
+        ctx.slots.inject(CHAT_ACTIONS_SLOT, () => {
+          try {
+            ctx.slots.register(
+              { name: CHAT_ACTIONS_SLOT, id: 'norms-copy', order: 20, locale: NAMESPACE },
+              CopyMarkdownAction,
+            )
+          } catch {
+            // A rejected declaration leaves the built-in actions unchanged.
+          }
+        })
+      } catch {
+        // The Client does not declare the assistant action list.
       }
     }
 
@@ -729,6 +941,7 @@ html body [class*="_markdown_"][class] table{margin:.7em 0}
       )
 
       installTypography(ctx)
+      installChatActions(ctx)
     }
 
     return { name: NAMESPACE, inject: ['slots', 'locale'], apply }

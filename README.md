@@ -5,16 +5,21 @@
 并提供「复制 Markdown」，方便导出或贴到文档里。
 
 同时按同一套规范统一「对话」页里 Markdown 的排版观感（标题层级、段落与列表节奏、
-代码块、引用、表格），让长回复读起来是一篇连贯的文档，而不是松散的段落堆叠。
+代码块、引用、表格），并让表格收进阅读列：表头浅底、隔行浅底、单元格可换行，
+列特别多时才在表格内部横向滚动，不会再把整段对话撑出页面横向滚动条。每条已定稿的
+助手回复在操作行里多一个「复制为 Markdown」按钮，复制的是模型写下的原始 Markdown
+源码（表格、列表、代码块、引用都保持原样）。
 
 Adds a conversation view tab that lays the current session out in one consistent
 format: turns as sections, then every user message, assistant reply and tool call
 with its arguments, result status and time. A **Copy Markdown** button exports the
 same transcript as Markdown. The same standard also normalizes the Markdown
-typography of the Chat view (headings, paragraphs, lists, code, quotes, tables).
+typography of the Chat view (headings, paragraphs, lists, code, quotes, tables):
+tables fit the reading column, and each settled assistant reply gains a
+**Copy as Markdown** action that copies the model's original Markdown source.
 
 - 包名 / package: `dsh-session-norms`
-- 版本 / version: `1.1.0`
+- 版本 / version: `1.2.0`
 - 许可证 / license: MIT
 
 ## 安装 / Install
@@ -39,14 +44,17 @@ dsh plugin --profile desktop add E:\path\to\dsh-session-norms
 2. 顶部显示轮次、消息、工具调用、错误数量；正文按「第 N 轮」分组。
 3. 超长消息与工具结果默认折叠，点「展开全文」查看；点「复制 Markdown」导出整份记录。
 4. 「对话」页本身不需要切换：插件挂载后，Markdown 正文的标题、段落、列表、代码块、
-   引用与表格即按统一规则呈现（深浅色都跟随主题变量）。
+   引用与表格即按统一规则呈现（深浅色都跟随主题变量）。表格按阅读列宽度排版，
+   表头与隔行使用浅一层的底色；列数特别多时只在表格内部横向滚动。
+5. 每条已定稿的助手回复末尾，操作行里有一个 **复制为 Markdown** 图标按钮，
+   点击即可把该条回复的原始 Markdown（含表格、列表、代码块）复制到剪贴板。
 
 ## 结构 / Layout
 
 | 部分 | 说明 |
 | --- | --- |
 | `index.js` | 宿主侧：把会话事件折叠成规范化记录，并通过会话投影（`sessionNorms`）发给界面。 |
-| `client.js` | 浏览器侧：注册 `conversation.view` 的 `norms` 视图、多语言文案和样式。 |
+| `client.js` | 浏览器侧：注册 `conversation.view` 的 `norms` 视图、已定稿助手操作行里的「复制为 Markdown」、多语言文案和排版样式。 |
 | `locale/*.json` | 插件列表里显示的标题与说明。 |
 
 ## 行为 / Behavior
@@ -60,6 +68,11 @@ dsh plugin --profile desktop add E:\path\to\dsh-session-norms
   `conversation.session.header.utilities`（嵌入布局时回退到 `conversation.composer.dock`），
   规则作用域为 Markdown 根节点的 CSS Modules 类（`[class*="_markdown_"]`），
   深浅色全部取自 `--dsw-alias-*` 主题变量。
+- 表格：铺满阅读列，单元格可收缩换行，表头与隔行使用主题的浅层底色；列的最小宽度
+  合计超过阅读列时，滚动限制在表格自身的滚动容器内，页面不再出现横向滚动条。
+- 复制为 Markdown：在 `conversation.chat.assistant-actions` 里追加一个图标按钮，从
+  `useChat` 读取该条已定稿回复的文本块并原样写入剪贴板；流式输出和中断内容没有
+  `messageId`，因此不显示按钮。按钮失败时不提示成功，1.8 秒后恢复原图标。
 - 跟随主题：颜色全部取自 `--dsw-alias-*` 主题变量，自动适配浅色/深色；
   文案跟随界面语言（中文 / English）。
 

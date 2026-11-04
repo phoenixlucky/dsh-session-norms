@@ -1,6 +1,6 @@
 {
   "meta": {
     "title": "Normative view",
-    "description": "Adds a conversation view that renders every turn, message, and tool call of the current session in one consistent, copyable format, and normalizes the Markdown typography of the Chat view (headings, paragraphs, lists, code, quotes, tables) to the same standard."
+    "description": "Adds a conversation view that renders every turn, message, and tool call of the current session in one consistent, copyable format, normalizes the Chat view's Markdown typography (headings, paragraphs, lists, code, quotes, tables), fits tables to the reading column, and adds a Copy as Markdown action to every settled assistant reply."
   }
 }

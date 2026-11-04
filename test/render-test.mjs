@@ -81,6 +81,57 @@ check('typography scopes to the markdown root', sheet.includes('[class*="_markdo
 check('typography avoids !important', !sheet.includes('!important'), 'override relies on !important')
 check('typography uses theme tokens only', !/#[0-9a-f]{3,8}\b/i.test(sheet), 'literal color found')
 check('typography normalizes list rhythm', /li\{margin-top:\.22em\}/.test(sheet), 'list rule missing')
+check(
+  'typography fits tables to the reading column',
+  sheet.includes('table{width:max-content;max-width:100%'),
+  'table width rule missing',
+)
+check('typography lets table cells shrink', sheet.includes('min-width:6.5em;max-width:none'), 'cell width rule missing')
+check(
+  'typography keeps wide tables inside their own scroller',
+  sheet.includes('_tableScroll_') && sheet.includes('overscroll-behavior-x:contain'),
+  'table scroller rule missing',
+)
+check('typography styles the Markdown copy action', sheet.includes('.sn-md-copy'), 'action rule missing')
+
+const actions = registrations.get('conversation.chat.assistant-actions')
+check('assistant actions registered', actions !== undefined, [...registrations.keys()].join(','))
+check('assistant action id', actions?.options?.id === 'norms-copy', actions?.options?.id)
+check('assistant action order', actions?.options?.order === 20, String(actions?.options?.order))
+check('assistant action locale', actions?.options?.locale === 'session-norms', actions?.options?.locale)
+
+const markdownText = '| 优先级 | 改什么 |\n| --- | --- |\n| P0 | 修复口径 |'
+const chatSnapshot = {
+  nodes: new Map([
+    [
+      'assistant-1',
+      {
+        kind: 'assistant-step',
+        data: {
+          blocks: [{ kind: 'text', text: markdownText }],
+          finalNode: {
+            messageId: 'message-1',
+            blocks: [{ kind: 'text', text: markdownText }],
+          },
+        },
+      },
+    ],
+  ]),
+}
+const withChat = (selector) => selector(chatSnapshot)
+const copyButton = ReactDOMServer.renderToStaticMarkup(
+  React.createElement(actions.component, { messageId: 'message-1', useChat: withChat }),
+)
+check('markdown copy renders a button', copyButton.includes('sn-md-copy'), copyButton.slice(0, 120))
+check('markdown copy is labelled', copyButton.includes('复制为 Markdown'), 'aria-label missing')
+check('markdown copy uses the markdown glyph', copyButton.includes('<svg'), 'icon missing')
+check('markdown copy exposes a test hook', copyButton.includes('data-session-norms="copy-markdown"'))
+
+const noMessage = ReactDOMServer.renderToStaticMarkup(
+  React.createElement(actions.component, { messageId: 'missing', useChat: withChat }),
+)
+check('markdown copy hides without a matching message', noMessage === '', noMessage.slice(0, 80))
+
 
 const render = (props) =>
   ReactDOMServer.renderToStaticMarkup(React.createElement(captured.component, props)).replace(/<style>[\s\S]*?<\/style>/g, '')
