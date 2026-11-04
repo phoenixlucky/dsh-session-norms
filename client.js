@@ -1,5 +1,5 @@
 window.__ModuleLoader__.load({
-  id: 'dsh-session-norms',
+  id: '@tinyforge/dsh-session-norms',
   factory(require) {
     const React = require('react')
     const h = React.createElement

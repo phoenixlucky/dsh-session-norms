@@ -3,5 +3,5 @@
 # the `dsh.client` declaration makes the Web app load ./client.js as the
 # browser half that registers the "Normative view" conversation view.
 - insert:
-    - id: session-norms
-      name: 'dsh-session-norms'
+    - id: tinyforge-session-norms
+      name: '@tinyforge/dsh-session-norms'

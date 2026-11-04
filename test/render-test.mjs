@@ -58,7 +58,7 @@ const check = (label, ok, detail) => {
   console.log(`${ok ? 'ok  ' : 'FAIL'}  ${label}`)
 }
 
-check('module id', spec.id === 'dsh-session-norms', spec.id)
+check('module id', spec.id === '@tinyforge/dsh-session-norms', spec.id)
 check('factory requested only react', requested.length === 1 && requested[0] === 'react', requested.join(','))
 check('slot name', captured?.options?.name === 'conversation.view', captured?.options?.name)
 check('slot id', captured?.options?.id === 'norms', captured?.options?.id)

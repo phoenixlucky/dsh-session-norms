@@ -18,8 +18,8 @@ typography of the Chat view (headings, paragraphs, lists, code, quotes, tables):
 tables fit the reading column, and each settled assistant reply gains a
 **Copy as Markdown** action that copies the model's original Markdown source.
 
-- 包名 / package: `dsh-session-norms`
-- 版本 / version: `1.2.2`
+- 包名 / package: `@tinyforge/dsh-session-norms`
+- 版本 / version: `1.3.0`
 - 许可证 / license: MIT
 
 ## 安装 / Install
@@ -27,8 +27,11 @@ tables fit the reading column, and each settled assistant reply gains a
 从 npm 安装。插件页「添加插件」里输入包名即可，也可以直接跑命令：
 
 ```sh
-dsh plugin --profile desktop add dsh-session-norms
+dsh plugin --profile desktop add @tinyforge/dsh-session-norms
 ```
+
+旧的无作用域包 `dsh-session-norms` 已弃用，请改装带作用域的 `@tinyforge/dsh-session-norms`。
+The old unscoped package `dsh-session-norms` is deprecated; install `@tinyforge/dsh-session-norms` instead.
 
 装好后重启 DSH，会话上方的视图标签栏里会多出「规范视图」。
 
@@ -36,7 +39,7 @@ dsh plugin --profile desktop add dsh-session-norms
 
 ```sh
 # 尝鲜尚未发布的提交
-dsh plugin --profile desktop add git+https://github.com/phoenixlucky/dsh-session-norms.git#v1.2.2
+dsh plugin --profile desktop add git+https://github.com/phoenixlucky/dsh-session-norms.git#v1.3.0
 
 # 本地开发目录（Windows 使用绝对路径）
 dsh plugin --profile desktop add E:\path\to\dsh-session-norms
@@ -49,8 +52,8 @@ dsh plugin --profile desktop add E:\path\to\dsh-session-norms
 从 Git（`git+…`、`github:`）或本地 `link:` / 路径安装的包不显示版本区块——DSH 的更新只为注册表安装准备：它先用 `pnpm view` 问注册表有哪些新版本，再用 `pnpm add 名字@版本` 安装，没有 Git 的更新通道。这类安装按固定版本重装：
 
 ```sh
-dsh plugin --profile desktop remove dsh-session-norms
-dsh plugin --profile desktop add git+https://github.com/phoenixlucky/dsh-session-norms.git#v1.2.3
+dsh plugin --profile desktop remove @tinyforge/dsh-session-norms
+dsh plugin --profile desktop add git+https://github.com/phoenixlucky/dsh-session-norms.git#v1.3.0
 ```
 
 ## 使用 / Usage
@@ -106,7 +109,7 @@ dsh plugin --profile desktop add git+https://github.com/phoenixlucky/dsh-session
 
 ## 卸载 / Uninstall
 
-在「插件」页面停用并卸载 `dsh-session-norms` 即可，视图标签页会同时消失。
+在「插件」页面停用并卸载 `@tinyforge/dsh-session-norms` 即可，视图标签页会同时消失。
 
 ## 开发 / Development
 
