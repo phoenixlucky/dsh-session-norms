@@ -19,7 +19,7 @@ tables fit the reading column, and each settled assistant reply gains a
 **Copy as Markdown** action that copies the model's original Markdown source.
 
 - 包名 / package: `@tinyforge/dsh-session-norms`
-- 版本 / version: `1.3.1`
+- 版本 / version: `1.4.0`
 - 许可证 / license: MIT
 
 ## 安装 / Install
@@ -39,7 +39,7 @@ The old unscoped package `dsh-session-norms` is deprecated; install `@tinyforge/
 
 ```sh
 # 尝鲜尚未发布的提交
-dsh plugin --profile desktop add git+https://github.com/phoenixlucky/dsh-session-norms.git#v1.3.1
+dsh plugin --profile desktop add git+https://github.com/phoenixlucky/dsh-session-norms.git#v1.4.0
 
 # 本地开发目录（Windows 使用绝对路径）
 dsh plugin --profile desktop add E:\path\to\dsh-session-norms
@@ -53,7 +53,7 @@ dsh plugin --profile desktop add E:\path\to\dsh-session-norms
 
 ```sh
 dsh plugin --profile desktop remove @tinyforge/dsh-session-norms
-dsh plugin --profile desktop add git+https://github.com/phoenixlucky/dsh-session-norms.git#v1.3.1
+dsh plugin --profile desktop add git+https://github.com/phoenixlucky/dsh-session-norms.git#v1.4.0
 ```
 
 ## 使用 / Usage
