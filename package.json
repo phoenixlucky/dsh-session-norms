@@ -1,6 +1,6 @@
 {
   "name": "@tinyforge/dsh-session-norms",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "type": "module",
   "description": "Normalized transcript view: renders every turn, message and tool call of the current Session in one consistent, copyable format.",
   "scripts": {
