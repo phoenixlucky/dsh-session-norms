@@ -189,11 +189,24 @@ html body [class*="_markdown_"][class] table[data-sn-cards="ready"] thead{displa
 html body [class*="_markdown_"][class] table[data-sn-cards="ready"] tbody{display:block}
 html body [class*="_markdown_"][class] table[data-sn-cards="ready"] tbody tr{display:block;margin:0 0 8px;padding:8px 12px 9px;border:1px solid var(--dsw-alias-border-l1);border-radius:var(--dsw-radius-md);background:var(--dsw-alias-bg-layer-1)}
 html body [class*="_markdown_"][class] table[data-sn-cards="ready"] tbody tr:last-child{margin-bottom:0}
+/*
+ * Label and value are a hanging indent, not a grid. The renderer leaves a cell
+ * as several inline runs (plain text, code spans, links, and one KaTeX block
+ * per dollar-delimited formula), and a grid container turns every run into its
+ * own grid item: a cell holding inline math scattered down the card, and the
+ * nowrap math ran over the value beside it. An absolutely placed label keeps
+ * the value in one inline flow, so whatever the renderer emits stays in
+ * reading order.
+ *
+ * The label runs at .9em, so its own em is smaller than the cell's: the width
+ * divides by .9 to hold the grid's 5.2em column (the 10px gap is absolute and
+ * stays as it is).
+ */
 html body [class*="_markdown_"][class] table[data-sn-cards="ready"] tbody td,
 html body [class*="_markdown_"][class] table[data-sn-cards="ready"] tbody td:first-child,
-html body [class*="_markdown_"][class] table[data-sn-cards="ready"] tbody td:last-child{display:grid;grid-template-columns:5.2em minmax(0,1fr);gap:10px;min-width:0;max-width:none;padding:3px 0;border:0;text-align:start;vertical-align:top}
-html body [class*="_markdown_"][class] table[data-sn-cards="ready"] tbody td::before{content:attr(data-sn-label);color:var(--dsw-alias-label-tertiary);font-weight:600;font-size:.9em;line-height:1.75;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-html body [class*="_markdown_"][class] table[data-sn-cards="ready"] tbody td:not([data-sn-label]){display:block;padding-left:0}
+html body [class*="_markdown_"][class] table[data-sn-cards="ready"] tbody td:last-child{display:block;position:relative;min-width:0;max-width:none;padding:3px 0 3px calc(5.2em + 10px);border:0;text-align:start;vertical-align:top}
+html body [class*="_markdown_"][class] table[data-sn-cards="ready"] tbody td::before{content:attr(data-sn-label);position:absolute;inset-inline-start:0;top:3px;width:calc(5.2em / .9);color:var(--dsw-alias-label-tertiary);font-weight:600;font-size:.9em;line-height:1.75;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+html body [class*="_markdown_"][class] table[data-sn-cards="ready"] tbody td:not([data-sn-label]){padding-left:0}
 html body [class*="_markdown_"][class] table[data-sn-cards="ready"] tbody td:not([data-sn-label])::before{content:none}
 /* Copy-as-Markdown action, sized like the built-in icon actions beside it. */
 .sn-md-copy{box-sizing:border-box;flex:none;display:inline-flex;align-items:center;justify-content:center;width:calc(28px + var(--dsh-content-font-delta,0px));height:calc(28px + var(--dsh-content-font-delta,0px));padding:6px;border:0;border-radius:var(--dsw-radius-sm);background:0 0;color:var(--dsw-alias-label-tertiary);cursor:pointer;transition:background .12s ease,color .12s ease}

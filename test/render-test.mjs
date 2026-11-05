@@ -92,6 +92,15 @@ check(
   sheet.includes('table[data-sn-cards="ready"]') && sheet.includes('content:attr(data-sn-label)'),
   'narrow table card rules missing',
 )
+// A card cell must stay a block holding one inline flow: the renderer emits a
+// cell as several inline runs (text, code, links, one KaTeX block per formula),
+// and a grid or flex container would turn every run into its own item.
+check(
+  'typography keeps card cell values in one inline flow',
+  !/table\[data-sn-cards="ready"\] tbody td[^{}]*\{[^}]*display:(grid|flex)/.test(sheet) &&
+    sheet.includes('padding:3px 0 3px calc(5.2em + 10px)'),
+  'card cell is a grid/flex container or lost its hanging indent',
+)
 check(
   'typography keeps two-column tables tabular at full width',
   sheet.includes('table[data-sn-cols="2"]{width:100%}'),
