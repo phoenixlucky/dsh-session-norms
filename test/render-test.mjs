@@ -197,7 +197,7 @@ if (payloadPath === undefined) {
 
   const real = render({ useProjection: (key) => (key === 'sessionNorms' ? value : undefined) })
   check('real payload renders root', real.includes('sn-root'))
-  check('real payload shows title', real.includes('会话规范化视图'))
+  check('real payload shows title', real.includes('WJ 会话规范视图'))
   check('real payload shows role chips', real.includes('用户'), 'user chip missing')
   check('real payload shows turn header', /第\s*\d+\s*轮/.test(real), 'turn header missing')
   check('real payload shows stat pills', (real.match(/sn-stat/g) ?? []).length >= 4, String((real.match(/sn-stat/g) ?? []).length))

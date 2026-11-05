@@ -9,8 +9,8 @@ window.__ModuleLoader__.load({
     /** Visible text, registered with the Client locale service. */
     const DICTS = {
       en: {
-        view: { label: 'Normative view' },
-        title: 'Normalized transcript',
+        view: { label: 'WJ Normative view' },
+        title: 'WJ Normative view',
         subtitle: 'Every turn, message and tool call of this session in one consistent format.',
         empty: 'This session has no content yet.',
         waiting: 'Collecting this session…',
@@ -42,8 +42,8 @@ window.__ModuleLoader__.load({
         showLess: 'Show less',
       },
       zh: {
-        view: { label: '规范视图' },
-        title: '会话规范化视图',
+        view: { label: 'WJ 会话规范视图' },
+        title: 'WJ 会话规范视图',
         subtitle: '把这一会话的每一轮、每条消息和每次工具调用整理成统一格式。',
         empty: '当前会话还没有内容。',
         waiting: '正在汇总当前会话…',

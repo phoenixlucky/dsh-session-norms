@@ -1,4 +1,4 @@
-# 会话规范视图 · Normative view
+# WJ 会话规范视图 · WJ Normative view
 
 为 DeepSeek Harness 增加一个会话视图标签页，把当前会话的记录整理成统一格式：
 按「轮次」分组，逐条显示用户消息、助手回复与工具调用（名称、参数、结果状态、时间），
@@ -33,7 +33,7 @@ dsh plugin --profile desktop add @tinyforge/dsh-session-norms
 旧的无作用域包 `dsh-session-norms` 已弃用，请改装带作用域的 `@tinyforge/dsh-session-norms`。
 The old unscoped package `dsh-session-norms` is deprecated; install `@tinyforge/dsh-session-norms` instead.
 
-装好后重启 DSH，会话上方的视图标签栏里会多出「规范视图」。
+装好后重启 DSH，会话上方的视图标签栏里会多出「WJ 会话规范视图」。
 
 固定版本的 Git 安装和本地目录安装仍然可用，但它们**不参与在线更新**（见下一节）：
 
@@ -58,7 +58,7 @@ dsh plugin --profile desktop add git+https://github.com/phoenixlucky/dsh-session
 
 ## 使用 / Usage
 
-1. 打开任意会话，点会话上方的 **规范视图** 标签页。
+1. 打开任意会话，点会话上方的 **WJ 会话规范视图** 标签页。
 2. 顶部显示轮次、消息、工具调用、错误数量；正文按「第 N 轮」分组。
 3. 超长消息与工具结果默认折叠，点「展开全文」查看；点「复制 Markdown」导出整份记录。
 4. 「对话」页本身不需要切换：插件挂载后，Markdown 正文的标题、段落、列表、代码块、
