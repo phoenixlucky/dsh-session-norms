@@ -79,6 +79,7 @@ dsh plugin --profile desktop add git+https://github.com/phoenixlucky/dsh-session
 | `index.js` | 宿主侧：把会话事件折叠成规范化记录，并通过会话投影（`sessionNorms`）发给界面。 |
 | `client.js` | 浏览器侧：注册 `conversation.view` 的 `norms` 视图、已定稿助手操作行里的「复制为 Markdown」、多语言文案和排版样式。 |
 | `locale/*.json` | 插件列表里显示的标题与说明。 |
+| `icon.webp` | 插件列表与详情页的图标（512×512，25 KiB，DSH 的图标预算上限是 256 KiB）。 |
 | `scripts/release.mjs` | 维护者发版脚本：检查、测试、改版本、提交、打标签、发布、推送。 |
 
 ## 行为 / Behavior
@@ -159,4 +160,4 @@ npm run release patch -- --dry-run     # 只打印将要执行的步骤，不写
 
 脚本会在动任何文件之前检查：版本确实比当前新、`v<版本>` 标签不存在、该版本还没被发布、`npm login` 有效。发布失败时本地的提交和标签会保留，按它打印的命令补一次 `npm publish` 与 `git push --follow-tags` 即可。手工发版是同一套动作：`npm version <patch|minor|major>` → `git push --follow-tags` → `npm publish`。
 
-发布出去的包只含 `package.json` 的 `files` 白名单里的文件（`index.js`、`client.js`、`cordis.patch.yml`、`locale`、`icon.svg`、`README.md`、`LICENSE`），`scripts/` 和 `test/` 不进包。
+发布出去的包只含 `package.json` 的 `files` 白名单里的文件（`index.js`、`client.js`、`cordis.patch.yml`、`locale`、`icon.webp`、`README.md`、`LICENSE`），`scripts/` 和 `test/` 不进包。

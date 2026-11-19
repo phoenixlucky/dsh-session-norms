@@ -175,6 +175,26 @@ if (logPath === undefined) {
   console.log(`\nfolded ${events.length} events in ${elapsed.toFixed(1)}ms, payload ${JSON.stringify(real).length} bytes`)
 }
 
+// --- Package metadata ----------------------------------------------------
+// DSH reads `icon` from the manifest, inlines it, and only accepts
+// svg/png/jpg/jpeg/webp that resolves inside the package and stays under
+// 256 KiB — so the icon is a shipped, sized artifact, not a build leftover.
+const manifest = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'))
+check('manifest declares a shipped icon', manifest.icon === 'icon.webp' && manifest.files.includes('icon.webp'), manifest.icon)
+check('icon export points at the same file', manifest.exports['./icon'] === './icon.webp', manifest.exports['./icon'])
+check('the retired svg icon is gone', !manifest.files.includes('icon.svg'))
+
+const iconBytes = readFileSync(new URL(`../${manifest.icon}`, import.meta.url))
+const chunk = iconBytes.subarray(12, 16).toString('latin1')
+check(
+  'icon is a WebP container',
+  iconBytes.subarray(0, 4).toString('latin1') === 'RIFF' && iconBytes.subarray(8, 12).toString('latin1') === 'WEBP',
+  iconBytes.subarray(0, 12).toString('latin1'),
+)
+check('icon uses a VP8 family chunk', ['VP8 ', 'VP8L', 'VP8X'].includes(chunk), chunk)
+check('icon fits the 256 KiB budget', iconBytes.length <= 256 * 1024, `${(iconBytes.length / 1024).toFixed(1)} KiB`)
+check('icon carries real pixels', iconBytes.length > 4096, `${iconBytes.length} bytes`)
+
 console.log('')
 console.log(`checks: ${checks.length}, failures: ${failures.length}`)
 if (failures.length > 0) {
