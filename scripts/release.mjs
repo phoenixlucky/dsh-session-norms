@@ -158,8 +158,10 @@ try {
   if (tests) {
     step('Tests')
     if (dryRun) {
+      console.log(`$ node test/host-test.mjs`)
       console.log(`$ node test/render-test.mjs`)
     } else {
+      run(process.execPath, [path.join('test', 'host-test.mjs')])
       run(process.execPath, [path.join('test', 'render-test.mjs')])
     }
   }

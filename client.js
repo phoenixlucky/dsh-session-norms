@@ -9,8 +9,8 @@ window.__ModuleLoader__.load({
     /** Visible text, registered with the Client locale service. */
     const DICTS = {
       en: {
-        view: { label: 'WJ Normative view' },
-        title: 'WJ Normative view',
+        view: { label: 'Session norms' },
+        title: 'Session norms',
         subtitle: 'Every turn, message and tool call of this session in one consistent format.',
         empty: 'This session has no content yet.',
         waiting: 'Collecting this session…',
@@ -42,8 +42,8 @@ window.__ModuleLoader__.load({
         showLess: 'Show less',
       },
       zh: {
-        view: { label: 'WJ 会话规范视图' },
-        title: 'WJ 会话规范视图',
+        view: { label: '会话规范' },
+        title: '会话规范',
         subtitle: '把这一会话的每一轮、每条消息和每次工具调用整理成统一格式。',
         empty: '当前会话还没有内容。',
         waiting: '正在汇总当前会话…',
@@ -208,6 +208,17 @@ html body [class*="_markdown_"][class] table[data-sn-cards="ready"] tbody td:las
 html body [class*="_markdown_"][class] table[data-sn-cards="ready"] tbody td::before{content:attr(data-sn-label);position:absolute;inset-inline-start:0;top:3px;width:calc(5.2em / .9);color:var(--dsw-alias-label-tertiary);font-weight:600;font-size:.9em;line-height:1.75;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 html body [class*="_markdown_"][class] table[data-sn-cards="ready"] tbody td:not([data-sn-label]){padding-left:0}
 html body [class*="_markdown_"][class] table[data-sn-cards="ready"] tbody td:not([data-sn-label])::before{content:none}
+/*
+ * A dollar pair in prose — a price, a discount — parses as inline math, so the
+ * renderer paints that run in KaTeX's serif at 1.21em and swallows both signs:
+ * one sentence grows a second typeface and half of it loses its dollars. The
+ * script marks a formula whose source carries CJK (prose, not TeX) with
+ * data-sn-tex; these rules put that text back into the document's own font,
+ * delimiters included, and keep the hidden MathML arm for assistive tech.
+ */
+html body [class*="_markdown_"][class] .katex[data-sn-tex]{font:inherit;font-size:1em;line-height:inherit;white-space:normal;vertical-align:baseline;color:inherit}
+html body [class*="_markdown_"][class] .katex[data-sn-tex]>.katex-html{display:none}
+html body [class*="_markdown_"][class] .katex[data-sn-tex]::before{content:"$" attr(data-sn-tex) "$";white-space:normal}
 /* Copy-as-Markdown action, sized like the built-in icon actions beside it. */
 .sn-md-copy{box-sizing:border-box;flex:none;display:inline-flex;align-items:center;justify-content:center;width:calc(28px + var(--dsh-content-font-delta,0px));height:calc(28px + var(--dsh-content-font-delta,0px));padding:6px;border:0;border-radius:var(--dsw-radius-sm);background:0 0;color:var(--dsw-alias-label-tertiary);cursor:pointer;transition:background .12s ease,color .12s ease}
 .sn-md-copy svg{width:calc(16px + var(--dsh-content-font-delta,0px));height:calc(16px + var(--dsh-content-font-delta,0px))}
@@ -879,7 +890,17 @@ html body [class*="_markdown_"][class] table[data-sn-cards="ready"] tbody td:not
     const CARD_BREAKPOINT = 600
 
     /**
-     * Copy each table header onto its cells and record the column count.
+     * Characters that mean a formula is really prose.
+     *
+     * TeX has no CJK: a dollar pair wrapped around Chinese text is two prices in
+     * one sentence, not a formula. KaTeX still paints that text (as italic
+     * serif, with the signs gone), so CJK in the source is the reliable tell.
+     */
+    const PROSE_MATH = /[\u2e80-\u9fff\uf900-\ufaff\uff00-\uffef\u3000-\u303f]/
+
+    /**
+     * Copy each table header onto its cells, record the column count, and mark
+     * prose that the renderer mistook for math.
      *
      * The card layout used in narrow reading columns needs a visible label per
      * value, but the Markdown renderer owns the table DOM and only emits a
@@ -894,7 +915,7 @@ html body [class*="_markdown_"][class] table[data-sn-cards="ready"] tbody td:not
      * scrollport to the shorter content, and the tail the reader just scrolled
      * to is lost even though the final layout is identical.
      */
-    function useTableLabels() {
+    function useMarkdownAttributes() {
       React.useEffect(() => {
         if (typeof document === 'undefined' || typeof MutationObserver !== 'function') return undefined
         let frame = 0
@@ -902,6 +923,7 @@ html body [class*="_markdown_"][class] table[data-sn-cards="ready"] tbody td:not
         const widths = new WeakMap()
         const watched = new WeakSet()
         const queued = new Set()
+        const maths = new Set()
 
         /**
          * Find the scrollport a table lives in, so a layout change can keep the
@@ -1020,16 +1042,47 @@ html body [class*="_markdown_"][class] table[data-sn-cards="ready"] tbody td:not
           const cards = table.getAttribute('data-sn-cards') === 'ready'
           let wanted = false
           if (labelled > 0 && heads.length >= 3 && available > 0) {
-            if (available < CARD_BREAKPOINT) wanted = true
-            else if (cards) wanted = naturalWidth(table) > available + 1
-            else wanted = wrapper.scrollWidth > available + 1
+            if (available < CARD_BREAKPOINT) {
+              wanted = true
+            } else if (!cards && table.getBoundingClientRect().width < available - 1) {
+              // Narrower than the column already: the table fits as a table, so
+              // skip the detached measurement.
+              wanted = false
+            } else {
+              // A table is `width:max-content` capped at the column, so a
+              // squeezed table reports exactly the column width and its
+              // scrollWidth never overflows — the scroll test could never fire
+              // and the table stayed a table, wrapping every cell into a tall
+              // stack. Only the detached copy says how much room the table
+              // really wants.
+              wanted = naturalWidth(table) > available + 1
+            }
           }
           if (wanted !== cards) setCards(table, wanted)
         }
 
         /**
-         * Collect the tables a mutation touched, so a frame's work stays
-         * proportional to what changed instead of the whole transcript.
+         * Record a formula's TeX source when the formula is really prose.
+         *
+         * The stylesheet reads the attribute back and prints `$source$` in the
+         * document's font, which is what the sentence said before the renderer
+         * read the dollars as math. Display math and real formulas are left as
+         * KaTeX painted them.
+         *
+         * @param formula The `.katex` element of one rendered formula.
+         */
+        function markProseMath(formula) {
+          if (formula.hasAttribute('data-sn-tex')) return
+          if (formula.closest('.katex-display') !== null) return
+          const annotation = formula.querySelector('annotation[encoding="application/x-tex"]')
+          const tex = annotation === null || annotation.textContent === null ? '' : annotation.textContent.trim()
+          if (tex === '' || !PROSE_MATH.test(tex)) return
+          formula.setAttribute('data-sn-tex', tex)
+        }
+
+        /**
+         * Collect the tables and formulas a mutation touched, so a frame's work
+         * stays proportional to what changed instead of the whole transcript.
          *
          * @param node Added or changed node.
          */
@@ -1037,28 +1090,37 @@ html body [class*="_markdown_"][class] table[data-sn-cards="ready"] tbody td:not
           const element = node !== null && node.nodeType === 1 ? node : node?.parentElement
           if (element === undefined || element === null) return
           if (element.closest('[data-sn-measure]') !== null) return
+          if (element.closest('[class*="_markdown_"]') === null) return
+          if (element.matches('.katex')) maths.add(element)
+          for (const formula of element.querySelectorAll('.katex')) maths.add(formula)
           const table = element.closest('table')
           if (table !== null) {
             queued.add(table)
             return
           }
-          if (element.matches('[class*="_markdown_"] table')) queued.add(element)
-          for (const found of element.querySelectorAll('[class*="_markdown_"] table')) queued.add(found)
+          if (element.matches('table')) queued.add(element)
+          for (const found of element.querySelectorAll('table')) queued.add(found)
         }
 
         const scan = () => {
           frame = 0
           const targets = Array.from(queued)
           queued.clear()
+          const formulas = Array.from(maths)
+          maths.clear()
           for (const table of targets) {
             if (table.isConnected) label(table)
+          }
+          for (const formula of formulas) {
+            if (formula.isConnected) markProseMath(formula)
           }
         }
         const scanAll = () => {
           for (const table of document.querySelectorAll('[class*="_markdown_"] table')) label(table)
+          for (const formula of document.querySelectorAll('[class*="_markdown_"] .katex')) markProseMath(formula)
         }
         const schedule = () => {
-          if (frame !== 0 || queued.size === 0) return
+          if (frame !== 0 || (queued.size === 0 && maths.size === 0)) return
           if (typeof requestAnimationFrame === 'function') frame = requestAnimationFrame(scan)
           else frame = setTimeout(scan, 16)
         }
@@ -1097,15 +1159,15 @@ html body [class*="_markdown_"][class] table[data-sn-cards="ready"] tbody td:not
     }
 
     /**
-     * Mount the typography sheet and label tables for the narrow card layout.
-     * A `<style>` element renders no box, so the host slot keeps its layout;
-     * the rules are global by design and scoped by the Markdown root's own
-     * class.
+     * Mount the typography sheet, label tables for the narrow card layout, and
+     * mark prose the renderer mistook for math. A `<style>` element renders no
+     * box, so the host slot keeps its layout; the rules are global by design
+     * and scoped by the Markdown root's own class.
      *
      * @returns A React element.
      */
     function TypographyStyle() {
-      useTableLabels()
+      useMarkdownAttributes()
       return h('style', { 'data-session-norms': 'typography' }, TYPOGRAPHY_CSS)
     }
 

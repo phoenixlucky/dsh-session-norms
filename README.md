@@ -1,4 +1,4 @@
-# WJ 会话规范视图 · WJ Normative view
+# 会话规范 · Session norms
 
 为 DeepSeek Harness 增加一个会话视图标签页，把当前会话的记录整理成统一格式：
 按「轮次」分组，逐条显示用户消息、助手回复与工具调用（名称、参数、结果状态、时间），
@@ -15,8 +15,9 @@ format: turns as sections, then every user message, assistant reply and tool cal
 with its arguments, result status and time. A **Copy Markdown** button exports the
 same transcript as Markdown. The same standard also normalizes the Markdown
 typography of the Chat view (headings, paragraphs, lists, code, quotes, tables):
-tables fit the reading column, and each settled assistant reply gains a
-**Copy as Markdown** action that copies the model's original Markdown source.
+tables fit the reading column, dollar pairs that only looked like formulas go
+back to plain text, and each settled assistant reply gains a **Copy as
+Markdown** action that copies the model's original Markdown source.
 
 - 包名 / package: `@tinyforge/dsh-session-norms`
 - 版本 / version: `1.4.1`
@@ -33,7 +34,7 @@ dsh plugin --profile desktop add @tinyforge/dsh-session-norms
 旧的无作用域包 `dsh-session-norms` 已弃用，请改装带作用域的 `@tinyforge/dsh-session-norms`。
 The old unscoped package `dsh-session-norms` is deprecated; install `@tinyforge/dsh-session-norms` instead.
 
-装好后重启 DSH，会话上方的视图标签栏里会多出「WJ 会话规范视图」。
+装好后重启 DSH，会话上方的视图标签栏里会多出「会话规范」。
 
 固定版本的 Git 安装和本地目录安装仍然可用，但它们**不参与在线更新**（见下一节）：
 
@@ -58,7 +59,7 @@ dsh plugin --profile desktop add git+https://github.com/phoenixlucky/dsh-session
 
 ## 使用 / Usage
 
-1. 打开任意会话，点会话上方的 **WJ 会话规范视图** 标签页。
+1. 打开任意会话，点会话上方的 **会话规范** 标签页。
 2. 顶部显示轮次、消息、工具调用、错误数量；正文按「第 N 轮」分组。
 3. 超长消息与工具结果默认折叠，点「展开全文」查看；点「复制 Markdown」导出整份记录。
 4. 「对话」页本身不需要切换：插件挂载后，Markdown 正文的标题、段落、列表、代码块、
@@ -81,6 +82,9 @@ dsh plugin --profile desktop add git+https://github.com/phoenixlucky/dsh-session
 ## 行为 / Behavior
 
 - 只读：不写入会话事件、不改变会话数据。
+- 数据来源：宿主侧把 `sessionProjections` 声明为必注入，等投影注册表就绪后才注册
+  `sessionNorms`；否则条目可能在注册表出现之前就激活，静默跳过注册，界面会一直停在
+  「正在汇总当前会话…」。注册失败只让本视图为空，不影响 DSH 启动。
 - 增量：汇总跟随已提交的会话事件（`turn/start`、`user/message`、`assistant/message`、
   `tool/call`、`tool/result`、`turn/end`），随回合推进自动刷新。
 - 有界：最多保留最近 200 行，单条消息文本最多 3000 字符，超出时在视图底部提示。
@@ -98,6 +102,11 @@ dsh plugin --profile desktop add git+https://github.com/phoenixlucky/dsh-session
   属性，不改动或重排产品节点；已经处于正确形态的表格不会被再次改写——切换形态会让
   表格高度瞬变，浏览器据此收紧滚动范围，把刚滚到底的阅读位置弹回中间。判断所需宽度
   时把表格副本放到屏外测量，因此滚动位置不受影响。
+- 价格不是公式：成对的 `$` 会被渲染器当成行内公式，一句话里出现两个金额就会变成两段
+  公式——字号放大、换成衬线体、美元符号消失。脚本把「源码里含中日韩文字」的公式判定为
+  误判的正文，给它写上 `data-sn-tex`，样式再按 `$源码$` 以正文的字体和字号还原；真正的
+  公式（`$E=mc^2$`）和块级公式照旧由 KaTeX 排版，无障碍朗读用的 MathML 保留。同样只加
+  属性，不改写渲染出的节点，流式新增的内容也会被补上。
 - 复制为 Markdown：在 `conversation.chat.assistant-actions` 里追加一个图标按钮，从
   `useChat` 读取该条已定稿回复的文本块并原样写入剪贴板；流式输出和中断内容没有
   `messageId`，因此不显示按钮。按钮失败时不提示成功，1.8 秒后恢复原图标。
@@ -115,15 +124,18 @@ dsh plugin --profile desktop add git+https://github.com/phoenixlucky/dsh-session
 
 ## 开发 / Development
 
+`test/host-test.mjs` 检查宿主侧：`inject` 声明、投影注册契约、折叠出的行与预算；
 `test/render-test.mjs` 用 React SSR 对浏览器侧做静态渲染检查：
 
 ```sh
-node test/render-test.mjs                      # 结构检查
-node test/render-test.mjs <projection.json>    # 追加真实会话投影数据检查
+npm test                                        # 两侧都跑
+node test/host-test.mjs <events.jsonl>           # 追加真实会话事件流检查
+node test/render-test.mjs <projection.json>      # 追加真实会话投影数据检查
 ```
 
 `<projection.json>` 是 `.dsh/storages/session_projcache/sessions/` 下某个会话的缓存；
-`DSH_PROFILE_DIR` 可指定提供 react 的 profile 目录。
+`<events.jsonl>` 是解压后的会话日志（每行一个事件）。`DSH_PROFILE_DIR` 可指定提供 react
+的 profile 目录。
 
 ## 发版 / Release
 

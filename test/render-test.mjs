@@ -75,6 +75,8 @@ const sheet =
         .replace(/<\/style>$/, '')
         // SSR markup escapes the CSS text; the browser receives it verbatim.
         .replace(/&quot;/g, '"')
+        .replace(/&gt;/g, '>')
+        .replace(/&lt;/g, '<')
         .replace(/&amp;/g, '&')
 check('typography renders a style element', typography !== undefined && sheet.length > 0, String(sheet.length))
 check('typography scopes to the markdown root', sheet.includes('[class*="_markdown_"]'), 'markdown root selector missing')
@@ -100,6 +102,13 @@ check(
   !/table\[data-sn-cards="ready"\] tbody td[^{}]*\{[^}]*display:(grid|flex)/.test(sheet) &&
     sheet.includes('padding:3px 0 3px calc(5.2em + 10px)'),
   'card cell is a grid/flex container or lost its hanging indent',
+)
+// Dollar pairs around Chinese text are prices, not formulas: the marked node
+// prints its source with the delimiters back, in the document's own font.
+check(
+  'typography restores prose that reads as math',
+  sheet.includes('content:"$" attr(data-sn-tex) "$"') && sheet.includes('.katex[data-sn-tex]>.katex-html{display:none}'),
+  'prose-math rules missing',
 )
 check(
   'typography keeps two-column tables tabular at full width',
@@ -206,7 +215,7 @@ if (payloadPath === undefined) {
 
   const real = render({ useProjection: (key) => (key === 'sessionNorms' ? value : undefined) })
   check('real payload renders root', real.includes('sn-root'))
-  check('real payload shows title', real.includes('WJ 会话规范视图'))
+  check('real payload shows title', real.includes('会话规范'))
   check('real payload shows role chips', real.includes('用户'), 'user chip missing')
   check('real payload shows turn header', /第\s*\d+\s*轮/.test(real), 'turn header missing')
   check('real payload shows stat pills', (real.match(/sn-stat/g) ?? []).length >= 4, String((real.match(/sn-stat/g) ?? []).length))

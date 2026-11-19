@@ -25,15 +25,28 @@ const MAX_ARGS = 200
 const MAX_RESULT = 240
 
 /**
- * Register the projection. A missing projection service or a rejected schema
- * leaves the plugin silent rather than failing its activation.
+ * The projection registry is a hard dependency, not an optional lookup.
+ *
+ * Without this declaration the entry loads as soon as the Loader reaches it and
+ * `ctx.get('sessionProjections')` may still be undefined: the registry belongs
+ * to another entry and its service is not registered yet at that instant. The
+ * plugin used to treat that moment as "no registry" and return, so no unit was
+ * ever registered — the view then waited on a projection that could never
+ * arrive, and every checkpoint was written without a `sessionNorms` row.
+ * Declaring the dependency parks the fiber in PENDING until the service exists.
+ */
+export const inject = ['sessionProjections']
+
+/**
+ * Register the projection. A rejected registration is reported and leaves the
+ * view empty rather than failing the whole bundle's activation.
  *
  * @param ctx Cordis context of this plugin.
  */
 export async function apply(ctx) {
   const projections = readService(ctx, 'sessionProjections')
   if (projections === undefined || typeof projections.register !== 'function') {
-    report(ctx, 'warn', 'sessionProjections is unavailable; the normalized transcript stays empty')
+    report(ctx, 'error', 'sessionProjections did not resolve after injection; the normalized transcript stays empty')
     return
   }
 
