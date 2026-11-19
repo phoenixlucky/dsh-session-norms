@@ -104,7 +104,8 @@ window.__ModuleLoader__.load({
 .sn-toggle{align-self:flex-start;appearance:none;font:inherit;font-size:11px;padding:2px 8px;border-radius:6px;border:1px solid var(--dsw-alias-border-l1);background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-link);cursor:pointer}
 .sn-toggle:hover{background:var(--dsw-alias-bg-layer-2)}
 .sn-toggle:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:2px}
-.sn-code{margin:0;padding:8px 10px;border:1px solid var(--dsw-alias-border-l1);border-radius:8px;background:var(--dsw-alias-bg-layer-2);font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px;line-height:1.55;white-space:pre-wrap;overflow-wrap:anywhere;max-height:132px;overflow:hidden;color:var(--dsw-alias-label-secondary)}
+.sn-code{margin:0;padding:8px 10px;border:1px solid var(--dsw-alias-border-l1);border-radius:8px;background:var(--dsw-alias-bg-layer-2);font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px;line-height:1.55;white-space:pre-wrap;overflow-wrap:anywhere;color:var(--dsw-alias-label-secondary)}
+.sn-code-open{max-height:60vh;overflow:auto}
 .sn-toolhead{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .sn-name{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px;font-weight:600}
 .sn-badge{font-size:11px;padding:0 7px;border-radius:999px;border:1px solid var(--dsw-alias-border-l1);color:var(--dsw-alias-label-tertiary)}
@@ -233,6 +234,12 @@ html body [class*="_markdown_"][class] .katex[data-sn-tex]::before{content:"$" a
     const langListeners = new Set()
     /** Longest message rendered without a disclosure. */
     const LONG_TEXT = 700
+
+    /** Longest code preview rendered without a disclosure. */
+    const CODE_PREVIEW = 320
+
+    /** Most lines a code preview keeps before the disclosure. */
+    const CODE_PREVIEW_LINES = 8
 
     /**
      * Switch the active dictionary language.
@@ -452,6 +459,110 @@ html body [class*="_markdown_"][class] .katex[data-sn-tex]::before{content:"$" a
     }
 
     /**
+     * Plain text of a tool result's content blocks, unabridged.
+     *
+     * The Host projection only ships a one-line preview, so the view reads the
+     * full result from the loaded Chat snapshot instead. Images and files become
+     * the same markers the Host uses, keeping both sources consistent.
+     *
+     * @param content Tool result content blocks.
+     * @returns Joined text, or an empty string.
+     */
+    function textOfContent(content) {
+      if (!Array.isArray(content)) return ''
+      const parts = []
+      for (const block of content) {
+        if (block === undefined || block === null || typeof block !== 'object') continue
+        const kind = typeof block.kind === 'string' ? block.kind : block.type
+        if (kind === 'text' && typeof block.text === 'string') {
+          if (block.text !== '') parts.push(block.text)
+          continue
+        }
+        if (kind === 'image') parts.push('[image]')
+        if (kind === 'file') {
+          const attachment = block.attachment
+          const name = attachment !== undefined && attachment !== null && typeof attachment.name === 'string' ? attachment.name : ''
+          parts.push(name === '' ? '[file]' : `[file] ${name}`)
+        }
+      }
+      return parts.join('\n\n')
+    }
+
+    /**
+     * Lay recorded JSON argument text out for reading.
+     *
+     * A recorded argument string is one long line, and the Host projection
+     * additionally flattens its whitespace for the preview. Re-indenting it
+     * makes a SQL statement or a nested patch readable; anything that is not a
+     * JSON object or array (or that the projection cut short) stays as it is.
+     *
+     * @param raw Recorded argument text.
+     * @returns Readable text.
+     */
+    function prettyJson(raw) {
+      const text = typeof raw === 'string' ? raw : ''
+      const trimmed = text.trim()
+      if (trimmed === '') return ''
+      if (!trimmed.startsWith('{') && !trimmed.startsWith('[')) return text
+      try {
+        return JSON.stringify(JSON.parse(trimmed), null, 2)
+      } catch {
+        return text
+      }
+    }
+
+    /**
+     * Index every loaded tool call by identity: full arguments and full result.
+     *
+     * The projection is the index of the transcript (order, names, status,
+     * times) and stays deliberately small, so a Tool row carries a preview. The
+     * Chat snapshot of the same Session holds the recorded payload the built-in
+     * Tool card renders, and it is already in memory: reading it here is what
+     * makes a row expandable without growing the wire value of every event.
+     *
+     * Nested calls are visited too, so a sub-agent's tool rows resolve as well.
+     *
+     * @param snapshot Chat snapshot read through the `useChat` standard prop.
+     * @returns Map of call id to `{ args, result }`.
+     */
+    function collectToolTexts(snapshot) {
+      const texts = new Map()
+      const nodes = snapshot === undefined || snapshot === null ? undefined : snapshot.nodes
+      if (nodes === undefined || nodes === null || typeof nodes.values !== 'function') return texts
+
+      /**
+       * Record one call block and descend into its subcalls.
+       *
+       * @param block Tool call block from the Chat tree.
+       */
+      function visit(block) {
+        if (block === undefined || block === null || typeof block !== 'object') return
+        const callId = typeof block.callId === 'string' ? block.callId : ''
+        if (callId !== '') {
+          const call = block.call !== undefined && block.call !== null ? block.call : undefined
+          const args = typeof block.argsRaw === 'string'
+            ? block.argsRaw
+            : call !== undefined && typeof call.argsRaw === 'string' ? call.argsRaw : ''
+          const result = block.kind === 'tool-result' ? textOfContent(block.content) : ''
+          const previous = texts.get(callId)
+          texts.set(callId, {
+            args: args !== '' ? args : previous === undefined ? '' : previous.args,
+            result: result !== '' ? result : previous === undefined ? '' : previous.result,
+          })
+        }
+        if (Array.isArray(block.subCalls)) for (const child of block.subCalls) visit(child)
+      }
+
+      for (const node of nodes.values()) {
+        if (node === undefined || node === null || node.kind !== 'tool-call') continue
+        const data = node.data
+        if (data === undefined || data === null) continue
+        visit(data.root)
+      }
+      return texts
+    }
+
+    /**
      * Markdown source of the settled assistant reply carrying `messageId`.
      *
      * @param snapshot Chat snapshot read through the `useChat` standard prop.
@@ -596,11 +707,15 @@ html body [class*="_markdown_"][class] .katex[data-sn-tex]::before{content:"$" a
     /**
      * Build the Markdown mirror of the normalized transcript.
      *
+     * Tool payloads come from the same resolved text the rows render, so an
+     * export no longer stops at the projection's 200-character preview.
+     *
      * @param data Normalized data.
      * @param t Translator.
+     * @param texts Call id to full argument and result text.
      * @returns Markdown document.
      */
-    function toMarkdown(data, t) {
+    function toMarkdown(data, t, texts) {
       const lines = [`# ${t('title')}`, '']
       lines.push(`- ${t('statTurns')}: ${data.turns}`)
       lines.push(`- ${t('statMessages')}: ${data.messages}`)
@@ -622,9 +737,14 @@ html body [class*="_markdown_"][class] .katex[data-sn-tex]::before{content:"$" a
         }
         if (row.k === 'tool') {
           const status = row.status === 'error' ? t('failed') : row.status === 'ok' ? t('ok') : t('pending')
+          const full = texts === undefined ? undefined : texts.get(row.callId)
+          const args = prettyJson(full !== undefined && full.args !== '' ? full.args : row.args)
+          const result = full !== undefined && full.result !== '' ? full.result : row.result
           lines.push(`**${t('roleTool')}** \`${row.name === '' ? '?' : row.name}\`${stamp(row.time)} · ${status}`, '')
-          if (typeof row.args === 'string' && row.args !== '') lines.push('```json', row.args, '```', '')
-          if (typeof row.result === 'string' && row.result !== '') lines.push(`> ${row.result}`, '')
+          if (args !== '') lines.push('```json', args, '```', '')
+          if (typeof result === 'string' && result !== '') {
+            lines.push(result.split('\n').map((line) => (line === '' ? '>' : `> ${line}`)).join('\n'), '')
+          }
         }
       }
       return `${lines.join('\n').replace(/\n{3,}/g, '\n\n')}\n`
@@ -670,6 +790,57 @@ html body [class*="_markdown_"][class] .katex[data-sn-tex]::before{content:"$" a
       return h('div', { key: 'side', className: 'sn-side' }, [
         h('span', { key: 'role', className: `sn-role ${roleClass}` }, role),
         value === '' ? null : h('span', { key: 'clock', className: 'sn-clock' }, value),
+      ])
+    }
+
+    /**
+     * Shorten recorded text to the preview budget, on both axes.
+     *
+     * A character budget alone is not enough: 300 characters of ten-character
+     * lines is a three-hundred-line block. Both bounds are applied so a
+     * collapsed row never depends on a CSS clamp — a clamp would cut the text
+     * without saying so, which is what the reader saw as "cannot expand".
+     *
+     * @param text Full text.
+     * @returns Preview text ending in an ellipsis.
+     */
+    function previewOf(text) {
+      const cut = text.length > CODE_PREVIEW ? text.slice(0, CODE_PREVIEW) : text
+      const lines = cut.split('\n')
+      const head = lines.length > CODE_PREVIEW_LINES ? lines.slice(0, CODE_PREVIEW_LINES).join('\n') : cut
+      return `${head.replace(/\s+$/, '')}…`
+    }
+
+    /**
+     * Monospace block with a disclosure for a payload that does not fit.
+     *
+     * The collapsed state renders a shortened excerpt, not the whole text behind
+     * a CSS clamp: a 200 KB tool result would otherwise still be measured and
+     * laid out on mount. Expanding is what puts the rest into the DOM, and only
+     * the expanded block is height-capped (and scrollable).
+     *
+     * @param props Text and the translator.
+     * @returns A React element.
+     */
+    function CodeBlock(props) {
+      const t = props.t
+      const text = props.text
+      const [open, setOpen] = React.useState(false)
+      const long = text.length > CODE_PREVIEW || text.split('\n').length > CODE_PREVIEW_LINES
+      if (!long) return h('pre', { className: 'sn-code' }, text)
+      return h('div', { className: 'sn-content' }, [
+        h('pre', { key: 'code', className: open ? 'sn-code sn-code-open' : 'sn-code' }, open ? text : previewOf(text)),
+        h(
+          'button',
+          {
+            key: 'toggle',
+            type: 'button',
+            className: 'sn-toggle',
+            onClick: () => setOpen(!open),
+            'aria-expanded': open,
+          },
+          open ? t('showLess') : t('showMore'),
+        ),
       ])
     }
 
@@ -726,27 +897,33 @@ html body [class*="_markdown_"][class] .katex[data-sn-tex]::before{content:"$" a
     }
 
     /**
-     * Tool call row with its recorded arguments and settled status.
+     * Tool call row: recorded arguments and result, expandable on demand.
+     *
+     * The projection ships a preview per field, so the row renders the full
+     * recorded text when the Chat snapshot has it and falls back to the preview
+     * otherwise. Only the visible part reaches the DOM: a huge tool result stays
+     * one collapsed line until the reader asks for it, which keeps a long
+     * transcript cheap to mount.
      *
      * @param row Tool row.
      * @param t Translator.
      * @param index React key.
+     * @param texts Call id to full argument and result text.
      * @returns A React element.
      */
-    function toolRow(row, t, index) {
+    function toolRow(row, t, index, texts) {
       const status = row.status === 'error' ? 'sn-badge-error' : row.status === 'ok' ? 'sn-badge-ok' : ''
       const statusText = row.status === 'error' ? t('failed') : row.status === 'ok' ? t('ok') : t('pending')
       const head = h('div', { key: 'head', className: 'sn-toolhead' }, [
         h('span', { key: 'name', className: 'sn-name' }, row.name === '' ? '?' : row.name),
         h('span', { key: 'status', className: `sn-badge ${status}` }, statusText),
       ])
+      const full = texts === undefined ? undefined : texts.get(row.callId)
+      const args = prettyJson(full !== undefined && full.args !== '' ? full.args : row.args)
+      const result = full !== undefined && full.result !== '' ? full.result : row.result
       const content = [head]
-      if (row.args !== '') {
-        content.push(h('pre', { key: 'args', className: 'sn-code' }, row.args))
-      }
-      if (typeof row.result === 'string' && row.result !== '') {
-        content.push(h('pre', { key: 'result', className: 'sn-code' }, row.result))
-      }
+      if (args !== '') content.push(h(CodeBlock, { key: 'args', t, text: args }))
+      if (typeof result === 'string' && result !== '') content.push(h(CodeBlock, { key: 'result', t, text: result }))
       return h('div', { key: `row-${index}`, className: 'sn-row' }, [
         sideRail(t('roleTool'), 'sn-role-tool', row.time),
         h('div', { key: 'content', className: 'sn-content' }, content),
@@ -808,6 +985,12 @@ html body [class*="_markdown_"][class] .katex[data-sn-tex]::before{content:"$" a
       const t = useT()
       const data = normalize(readProjection(props))
       const [notice, setNotice] = React.useState('')
+      // The Chat snapshot is only consulted for tool payloads the projection
+      // truncated. Reading it whole (and memoizing off that reference) keeps the
+      // selector stable, which a per-call Map would not be.
+      const useChat = props !== undefined && typeof props.useChat === 'function' ? props.useChat : null
+      const chat = useChat === null ? undefined : useChat((snapshot) => snapshot)
+      const texts = React.useMemo(() => collectToolTexts(chat), [chat])
 
       React.useEffect(() => {
         if (notice === '') return undefined
@@ -819,11 +1002,11 @@ html body [class*="_markdown_"][class] .katex[data-sn-tex]::before{content:"$" a
       const canCopy = data !== null && rows.length > 0
       const onCopy = React.useCallback(() => {
         if (data === null) return
-        writeClipboard(toMarkdown(data, t)).then(
+        writeClipboard(toMarkdown(data, t, texts)).then(
           (ok) => setNotice(ok ? t('copied') : t('copyFailed')),
           () => setNotice(t('copyFailed')),
         )
-      }, [data, t])
+      }, [data, t, texts])
 
       const head = h('header', { key: 'head', className: 'sn-head' }, [
         h('div', { key: 'titles', className: 'sn-titles' }, [
@@ -861,7 +1044,7 @@ html body [class*="_markdown_"][class] .katex[data-sn-tex]::before{content:"$" a
           const row = rows[index]
           if (row.k === 'turn') children.push(turnRow(row, t, index))
           else if (row.k === 'user' || row.k === 'assistant') children.push(messageRow(row, t, index))
-          else if (row.k === 'tool') children.push(toolRow(row, t, index))
+          else if (row.k === 'tool') children.push(toolRow(row, t, index, texts))
         }
         if (data.truncated) {
           children.push(h('p', { key: 'truncated', className: 'sn-note' }, t('truncated')))

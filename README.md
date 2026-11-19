@@ -61,7 +61,9 @@ dsh plugin --profile desktop add git+https://github.com/phoenixlucky/dsh-session
 
 1. 打开任意会话，点会话上方的 **会话规范** 标签页。
 2. 顶部显示轮次、消息、工具调用、错误数量；正文按「第 N 轮」分组。
-3. 超长消息与工具结果默认折叠，点「展开全文」查看；点「复制 Markdown」导出整份记录。
+3. 超长消息与工具调用默认折叠，点「展开全文」查看；点「复制 Markdown」导出整份记录。
+   工具行的**参数**按 JSON 重新缩进显示，**结果**展示完整内容并按需展开，两者都直接取自
+   已加载的会话数据，不受宿主侧 200 字符预览的限制。
 4. 「对话」页本身不需要切换：插件挂载后，Markdown 正文的标题、段落、列表、代码块、
    引用与表格即按统一规则呈现（深浅色都跟随主题变量）。表格铺满阅读列并与正文对齐，
    表头与隔行使用浅一层的底色；两列表格始终铺满阅读列（与输入框同宽）。
@@ -88,6 +90,11 @@ dsh plugin --profile desktop add git+https://github.com/phoenixlucky/dsh-session
 - 增量：汇总跟随已提交的会话事件（`turn/start`、`user/message`、`assistant/message`、
   `tool/call`、`tool/result`、`turn/end`），随回合推进自动刷新。
 - 有界：最多保留最近 200 行，单条消息文本最多 3000 字符，超出时在视图底部提示。
+- 工具行的完整内容：宿主侧只发布参数与结果的短预览（200 / 240 字符），让投影体积不随
+  工具输出膨胀；因此工具行渲染时按 `callId` 从 `useChat` 的已加载快照里取回完整参数与
+  结果。折叠状态只渲染取回文本的前 320 字符或前 8 行（两者先到为准），展开才把剩余内容
+  放进 DOM —— 既不会因为 CSS 截断而看不到尾巴，也不至于让一条 200KB 的工具结果在挂载时
+  就被排版。快照里没有该调用时（例如调用已滑出加载窗口）自动回退到宿主预览。
 - 排版层：只注入样式，不接管渲染器——不注册 `conversation.chat.node` 的 keyed cell，
   因此 Markdown 渲染、工具行、助手操作按钮和主题切换都保持内置行为。样式挂载在
   `conversation.session.header.utilities`（嵌入布局时回退到 `conversation.composer.dock`），

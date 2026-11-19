@@ -188,6 +188,106 @@ try {
 }
 check('throwing hook surfaces, boundary owns the fallback in browser', rethrown.includes('projection unavailable'), rethrown)
 
+// --- Tool payload resolution ---------------------------------------------
+
+const toolRowValue = (over) => ({
+  turns: 1,
+  messages: 0,
+  tools: 1,
+  errors: 0,
+  rows: [{ k: 'tool', turn: 1, step: 1, time: 0, callId: 'call-1', name: 'query', status: 'ok', args: '', result: '', ...over }],
+})
+
+const previewOnly = render({ useProjection: () => toolRowValue({ args: '{"sql":"SELECT 1"}', result: '页面：进度' }) })
+check('tool row shows the projected argument preview', previewOnly.includes('&quot;sql&quot;'), previewOnly.slice(0, 160))
+check('tool row keeps a short preview collapsed', !previewOnly.includes('展开全文'), 'a 200-character preview must not pretend to offer more')
+
+const longPreview = render({ useProjection: () => toolRowValue({ args: `{"sql":"${'x'.repeat(400)}"}` }) })
+check('tool row offers a disclosure for a long payload', longPreview.includes('展开全文'))
+check('tool row renders only the collapsed excerpt', longPreview.includes('x'.repeat(300)) && !longPreview.includes('x'.repeat(340)))
+
+// A Chat snapshot carries what the projection previews: the recorded arguments
+// and the full result content.
+const toolCallNode = (callId, over) => ({
+  kind: 'tool-call',
+  data: {
+    root: {
+      kind: 'tool-result',
+      seq: 1,
+      time: 0,
+      callId,
+      name: 'query',
+      args: {},
+      call: { name: 'query', argsRaw: '' },
+      callTime: 0,
+      content: [],
+      isError: false,
+      subCalls: [],
+      ...over,
+    },
+  },
+})
+const chatWith = (nodes) => ({ nodes: new Map(Object.entries(nodes)) })
+const useChatOf = (snapshot) => (selector) => selector(snapshot)
+
+const fullArgs = '{"sql":"SELECT platform_account,\\n       SUM(spend_amount) AS spend\\nFROM ad_campaign_performance","limit":100}'
+const fullResult = `页面：公司运营部门本月人员业绩进度
+第二行：完整结果不应该被截断`
+
+const enriched = render({
+  useProjection: () => toolRowValue({ args: '{"sql":"SELECT plat…', result: '页面：公司运营部门' }),
+  useChat: useChatOf(chatWith({
+    'tool-1': toolCallNode('call-1', {
+      call: { name: 'query', argsRaw: fullArgs },
+      content: [{ kind: 'text', text: fullResult }],
+    }),
+  })),
+})
+check('tool row replaces the preview with the recorded arguments', enriched.includes('SELECT platform_account') && !enriched.includes('SELECT plat&hellip;'))
+check('tool row indents recorded JSON', /\n {2}&quot;sql&quot;/.test(enriched), 'pretty-printed JSON missing')
+check('tool row uses the whole result content', enriched.includes('第二行：完整结果不应该被截断'))
+check('a short payload needs no disclosure', !enriched.includes('展开全文'), 'a payload that fits must not offer expansion')
+
+const longArgs = JSON.stringify({ sql: `SELECT ${'a'.repeat(500)}` })
+const longResult = render({
+  useProjection: () => toolRowValue({ args: '{"sql":"SELECT a…', result: '页面：进度' }),
+  useChat: useChatOf(chatWith({
+    'tool-2': toolCallNode('call-1', {
+      call: { name: 'query', argsRaw: longArgs },
+      content: [{ kind: 'text', text: `结果 ${'r'.repeat(500)}` }],
+    }),
+  })),
+})
+check('a long payload offers expansion', longResult.includes('展开全文'))
+check('the collapsed row stops before the tail', longResult.includes('a'.repeat(300)) && !longResult.includes('a'.repeat(400)))
+check('the collapsed row hides the full result too', longResult.includes('r'.repeat(300)) && !longResult.includes('r'.repeat(400)))
+
+const unrelatedChat = render({
+  useProjection: () => toolRowValue({ args: '{"sql":"SELECT 1"}', result: '页面：进度' }),
+  useChat: useChatOf(chatWith({ 'tool-1': toolCallNode('other-call', { content: [{ kind: 'text', text: 'wrong result' }] }) })),
+})
+check('a call id mismatch keeps the projected preview', unrelatedChat.includes('SELECT 1') && !unrelatedChat.includes('wrong result'))
+
+const noChatSnapshot = render({
+  useProjection: () => toolRowValue({ args: '{"sql":"SELECT 1"}', result: '页面：进度' }),
+  useChat: () => undefined,
+})
+check('a missing chat snapshot still renders the row', noChatSnapshot.includes('sn-name') && noChatSnapshot.includes('SELECT 1'))
+
+// A character budget alone would let 300 characters of short lines grow into a
+// three-hundred-line block, and a CSS clamp would hide the tail without saying
+// so — the exact "truncated and cannot expand" symptom.
+const manyLines = Array.from({ length: 12 }, (_, index) => `第${index + 1}行`).join('\n')
+const lineBounded = render({
+  useProjection: () => toolRowValue({ args: '', result: '页面：进度' }),
+  useChat: useChatOf(chatWith({
+    'tool-3': toolCallNode('call-1', { call: { name: 'query', argsRaw: '{}' }, content: [{ kind: 'text', text: manyLines }] }),
+  })),
+})
+check('a payload of many short lines still offers expansion', manyLines.length < 320 && lineBounded.includes('展开全文'))
+check('the line-bounded preview keeps the leading lines only', lineBounded.includes('第8行') && !lineBounded.includes('第9行'))
+check('the collapsed block never relies on a CSS clamp', lineBounded.includes('sn-code') && !/sn-code[^"]*style="[^"]*max-height/.test(lineBounded))
+
 const payloadPath = process.argv[2]
 if (payloadPath === undefined) {
   console.log('\n(no projection payload given; structural checks only)')
