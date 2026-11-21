@@ -52,7 +52,8 @@
     "bundle": { "patch": "./cordis.patch.yml" },
     "compatibility": {
       "dshReleases": {
-        "0.2.2-alpha.2": "compatible"
+        "0.2.2-alpha.2": "compatible",
+        "0.2.2-rc.5": "compatible"
       }
     },
     "client": {

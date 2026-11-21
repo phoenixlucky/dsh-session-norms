@@ -1,5 +1,11 @@
 # WJ 会话规范 · Session norms
 
+![license](https://img.shields.io/badge/license-MIT-blue)
+![npm](https://img.shields.io/npm/v/@tinyforge/dsh-session-norms?label=npm)
+![downloads](https://img.shields.io/npm/dm/@tinyforge/dsh-session-norms?label=downloads)
+![DSH Web Plugin](https://img.shields.io/badge/DSH_Web_Plugin-yes-brightgreen)
+![DSH tested up to](https://img.shields.io/badge/DSH_tested_up_to-0.2.2--rc.5-blue)
+
 为 DeepSeek Harness 增加一个会话视图标签页，把当前会话的记录整理成统一格式：
 按「轮次」分组，逐条显示用户消息、助手回复与工具调用（名称、参数、结果状态、时间），
 并提供「复制 Markdown」，方便导出或贴到文档里。
@@ -123,8 +129,8 @@ dsh plugin --profile desktop add git+https://github.com/phoenixlucky/dsh-session
 
 ## 兼容性 / Compatibility
 
-已在 DeepSeek Harness `0.2.2-alpha.2` 上验证，`engines.dsh` 声明为
-`>=0.2.2-alpha.2 <0.3.0-0`。其他版本未验证。
+已在 DeepSeek Harness `0.2.2-rc.5` 上验证（`1.4.5` 装在桌面 profile 里跑），
+`engines.dsh` 声明为 `>=0.2.2-alpha.2 <0.3.0-0`。其他版本未验证。
 
 ## 卸载 / Uninstall
 
