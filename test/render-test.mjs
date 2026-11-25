@@ -288,6 +288,107 @@ check('a payload of many short lines still offers expansion', manyLines.length <
 check('the line-bounded preview keeps the leading lines only', lineBounded.includes('第8行') && !lineBounded.includes('第9行'))
 check('the collapsed block never relies on a CSS clamp', lineBounded.includes('sn-code') && !/sn-code[^"]*style="[^"]*max-height/.test(lineBounded))
 
+// --- View shell: one reading edge, honest disclosures ---------------------
+
+// The view ships its own stylesheet inside the component, so the shell render
+// is read before `render()` strips it. SSR escapes the CSS text.
+const shellHtml = ReactDOMServer.renderToStaticMarkup(React.createElement(captured.component, {}))
+const viewCss = (shellHtml.match(/<style>([\s\S]*?)<\/style>/) ?? ['', ''])[1]
+  .replace(/&quot;/g, '"')
+  .replace(/&gt;/g, '>')
+  .replace(/&lt;/g, '<')
+  .replace(/&amp;/g, '&')
+check(
+  'view keeps one reading edge for title and body',
+  viewCss.includes('--sn-edge:calc(var(--sn-gutter) + var(--sn-gap))') &&
+    /\.sn-head\{[^}]*padding:16px 24px 12px var\(--sn-edge\)/.test(viewCss) &&
+    /\.sn-row\{[^}]*grid-template-columns:var\(--sn-gutter\)/.test(viewCss),
+  'title, rail and body do not share the content edge',
+)
+check(
+  'view aligns the turn label to the same edge',
+  /\.sn-turn\{[^}]*padding-inline-start:var\(--sn-edge\)/.test(viewCss),
+  'turn label sits on the header edge',
+)
+check(
+  'view clamps a long message on whole lines',
+  viewCss.includes('max-height:9.9em') && viewCss.includes('mask-image:linear-gradient') && !viewCss.includes('max-height:9.5em'),
+  'the clamp slices a line in half or hides its own tail',
+)
+check(
+  'view gives copy feedback its own status slot',
+  /class="sn-notice"[^>]*role="status"/.test(shellHtml) && /aria-live="polite"/.test(shellHtml),
+  'feedback still swaps the button label',
+)
+
+const longMessage = 'x'.repeat(800)
+const collapsed = render({
+  useProjection: () => ({
+    turns: 1,
+    messages: 1,
+    tools: 0,
+    errors: 0,
+    rows: [{ k: 'user', turn: 1, time: 0, text: longMessage }],
+  }),
+})
+const messageId = (collapsed.match(/<div id="(sn-message-\d+)" class="sn-clamped"><p class="sn-text">/) ?? [])[1]
+check(
+  'collapsed message points its toggle at the text',
+  messageId !== undefined && collapsed.includes(`aria-controls="${messageId}"`),
+  'aria-controls missing on the disclosure',
+)
+
+const emptyReply = render({
+  useProjection: () => ({
+    turns: 1,
+    messages: 1,
+    tools: 0,
+    errors: 0,
+    rows: [{ k: 'assistant', turn: 1, step: 1, time: 0, text: '' }],
+  }),
+})
+check(
+  'an empty reply names itself instead of a dash',
+  emptyReply.includes('（无正文）') && !emptyReply.includes('>—<'),
+  'empty reply still renders a lone dash',
+)
+
+const timed = render({
+  useProjection: () => ({
+    turns: 1,
+    messages: 1,
+    tools: 0,
+    errors: 0,
+    rows: [{ k: 'user', turn: 1, time: 1700000000000, text: 'hi' }],
+  }),
+})
+check(
+  'the rail reads minutes and keeps seconds in the title',
+  /<span class="sn-clock" title="\d\d:\d\d:\d\d">\d\d:\d\d<\/span>/.test(timed),
+  'clock format changed',
+)
+
+// --- Bold markers a CommonMark parser refuses to open ---------------------
+// `变**「甲」**——`: the opening run is followed by CJK punctuation and preceded
+// by a letter, so it is not left-flanking; micromark keeps both markers on
+// purpose. The repair pairs them back, and only where the markers are markup.
+
+const pairBold = mod.__pairBold
+const renderSegments = (parts) => (parts === null ? 'null' : parts.map((part) => (part.bold ? `[${part.text}]` : part.text)).join(''))
+
+check('bold repair is exported for checks', typeof pairBold === 'function', typeof pairBold)
+check(
+  'bold repair rebuilds a CJK-adjacent pair',
+  renderSegments(pairBold('主导逻辑变成**「硬件兑现」**——证据。')) === '主导逻辑变成[「硬件兑现」]——证据。',
+  renderSegments(pairBold('主导逻辑变成**「硬件兑现」**——证据。')),
+)
+check('bold repair pairs more than one span', renderSegments(pairBold('前**甲**后**乙**尾')) === '前[甲]后[乙]尾', renderSegments(pairBold('前**甲**后**乙**尾')))
+check('bold repair keeps an unclosed marker as text', pairBold('**未闭合') === null, renderSegments(pairBold('**未闭合')))
+check('bold repair refuses a pair framed by spaces', pairBold('用 ** 表示通配符') === null, renderSegments(pairBold('用 ** 表示通配符')))
+check('bold repair refuses a nested marker', pairBold('***三重***') === null, renderSegments(pairBold('***三重***')))
+check('bold repair leaves plain prose alone', pairBold('没有标记的一段话') === null)
+check('bold repair stays inert without a DOM', mod.__repairBold(undefined) === 0, String(mod.__repairBold(undefined)))
+
 const payloadPath = process.argv[2]
 if (payloadPath === undefined) {
   console.log('\n(no projection payload given; structural checks only)')

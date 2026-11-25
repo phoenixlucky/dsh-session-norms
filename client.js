@@ -38,6 +38,9 @@ window.__ModuleLoader__.load({
         pending: 'recorded',
         truncated: 'Showing the most recent part of this session only.',
         noArgs: 'No arguments recorded.',
+        noText: '(no text)',
+        stalled: 'The transcript is not arriving.',
+        stalledHint: 'The Host registered this projection but has published nothing yet. Reload the page; if it stays empty, check the plugin.',
         showMore: 'Show full text',
         showLess: 'Show less',
       },
@@ -71,14 +74,22 @@ window.__ModuleLoader__.load({
         pending: '已记录',
         truncated: '仅显示本会话最近的内容。',
         noArgs: '没有记录到参数。',
+        noText: '（无正文）',
+        stalled: '会话汇总没有到达。',
+        stalledHint: '宿主已注册该投影，却一直没有发布数据。可刷新页面；若仍为空，检查插件状态。',
         showMore: '展开全文',
         showLess: '收起',
       },
     }
 
     const CSS = `
-.sn-root{display:flex;flex-direction:column;height:100%;min-height:0;background:var(--dsw-alias-bg-base);color:var(--dsw-alias-label-primary);font-size:13px;line-height:1.65}
-.sn-head{flex:0 0 auto;display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px;padding:16px 24px 12px;border-bottom:1px solid var(--dsw-alias-border-l1)}
+/*
+ * One reading edge. The role rail is a margin note, so the title block, the
+ * turn label and every message line up on the content edge; the rail itself
+ * stays outdented. Two left edges made the eye jump a hundred pixels per row.
+ */
+.sn-root{--sn-gutter:96px;--sn-gap:16px;--sn-edge:calc(var(--sn-gutter) + var(--sn-gap));display:flex;flex-direction:column;height:100%;min-height:0;background:var(--dsw-alias-bg-base);color:var(--dsw-alias-label-primary);font-size:13px;line-height:1.65}
+.sn-head{flex:0 0 auto;display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px;padding:16px 24px 12px var(--sn-edge);border-bottom:1px solid var(--dsw-alias-border-l1)}
 .sn-titles{display:flex;flex-direction:column;gap:3px;min-width:0}
 .sn-title{margin:0;font-size:15px;font-weight:600;letter-spacing:.01em}
 .sn-subtitle{margin:0;font-size:12px;color:var(--dsw-alias-label-tertiary)}
@@ -90,9 +101,9 @@ window.__ModuleLoader__.load({
 .sn-btn:disabled{opacity:.5;cursor:default}
 .sn-btn:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:2px}
 .sn-body{flex:1 1 auto;min-height:0;overflow-y:auto;padding:4px 24px 48px}
-.sn-turn{display:flex;align-items:center;gap:12px;margin:24px 0 6px;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--dsw-alias-label-tertiary)}
+.sn-turn{display:flex;align-items:center;gap:12px;margin:24px 0 6px;padding-inline-start:var(--sn-edge);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--dsw-alias-label-tertiary)}
 .sn-turn::after{content:"";flex:1 1 auto;height:1px;background:var(--dsw-alias-border-l1)}
-.sn-row{display:grid;grid-template-columns:96px minmax(0,1fr);gap:16px;padding:12px 0;border-top:1px solid var(--dsw-alias-border-l1)}
+.sn-row{display:grid;grid-template-columns:var(--sn-gutter) minmax(0,1fr);gap:var(--sn-gap);padding:12px 0;border-top:1px solid var(--dsw-alias-border-l1)}
 .sn-side{display:flex;flex-direction:column;gap:4px;min-width:0}
 .sn-role{align-self:flex-start;padding:1px 8px;border-radius:999px;border:1px solid var(--dsw-alias-border-l1);background:var(--dsw-alias-bg-layer-1);font-size:11px;font-weight:600;color:var(--dsw-alias-label-secondary);white-space:nowrap}
 .sn-role-user{background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary)}
@@ -100,11 +111,21 @@ window.__ModuleLoader__.load({
 .sn-clock{font-size:11px;color:var(--dsw-alias-label-tertiary);font-variant-numeric:tabular-nums}
 .sn-content{min-width:0;display:flex;flex-direction:column;gap:8px}
 .sn-text{margin:0;white-space:pre-wrap;overflow-wrap:anywhere}
-.sn-clamped{max-height:9.5em;overflow:hidden}
+/*
+ * A collapsed message is capped on whole lines and fades out at the bottom, so
+ * the reader sees "there is more" instead of a slice through a line. The cap is
+ * six lines at the root's 1.65 line-height (6 × 1.65 = 9.9em, 128.7px).
+ *
+ * The fade is a mask, not an overlay: an overlay would have to know the row's
+ * background, and the theme changes it underneath. A line-clamp box was tried
+ * first and left its ellipsis alone on a line whenever the cut fell on one of
+ * the blank lines between paragraphs.
+ */
+.sn-clamped{position:relative;max-height:9.9em;overflow:hidden;-webkit-mask-image:linear-gradient(to bottom,#000 80%,transparent);mask-image:linear-gradient(to bottom,#000 80%,transparent)}
 .sn-toggle{align-self:flex-start;appearance:none;font:inherit;font-size:11px;padding:2px 8px;border-radius:6px;border:1px solid var(--dsw-alias-border-l1);background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-link);cursor:pointer}
 .sn-toggle:hover{background:var(--dsw-alias-bg-layer-2)}
 .sn-toggle:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:2px}
-.sn-code{margin:0;padding:8px 10px;border:1px solid var(--dsw-alias-border-l1);border-radius:8px;background:var(--dsw-alias-bg-layer-2);font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px;line-height:1.55;white-space:pre-wrap;overflow-wrap:anywhere;color:var(--dsw-alias-label-secondary)}
+.sn-code{margin:0;padding:8px 10px;border:1px solid var(--dsw-alias-border-l1);border-radius:8px;background:var(--dsw-alias-bg-layer-2);font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px;line-height:1.55;white-space:pre-wrap;overflow-wrap:break-word;color:var(--dsw-alias-label-secondary)}
 .sn-code-open{max-height:60vh;overflow:auto}
 .sn-toolhead{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .sn-name{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px;font-weight:600}
@@ -115,8 +136,17 @@ window.__ModuleLoader__.load({
 .sn-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:64px 24px;text-align:center}
 .sn-empty-title{font-size:13px;font-weight:600;color:var(--dsw-alias-label-secondary)}
 .sn-empty-text{margin:0;font-size:12px;color:var(--dsw-alias-label-tertiary)}
-.sn-note{margin:10px 0 0;font-size:11px;color:var(--dsw-alias-label-tertiary)}
-@media (max-width:720px){.sn-head{padding:12px 16px}.sn-body{padding:4px 16px 40px}.sn-row{grid-template-columns:1fr;gap:6px}.sn-side{flex-direction:row;align-items:center;gap:8px}}
+.sn-note{margin:10px 0 0;padding-inline-start:var(--sn-edge);font-size:11px;color:var(--dsw-alias-label-tertiary)}
+/*
+ * Copy feedback lives beside the button instead of inside it. Swapping the
+ * label changed the button's width and the whole stat row slid sideways on
+ * every copy; a reserved status slot keeps the header still.
+ */
+.sn-notice{min-width:5.5em;text-align:end;font-size:11px;color:var(--dsw-alias-label-tertiary)}
+.sn-notice[data-state=ok]{color:var(--dsw-alias-state-success-primary)}
+.sn-notice[data-state=failed]{color:var(--dsw-alias-state-error-primary)}
+.sn-empty-line{font-size:12px;color:var(--dsw-alias-label-tertiary)}
+@media (max-width:720px){.sn-head{padding:12px 16px}.sn-body{padding:4px 16px 40px}.sn-row{grid-template-columns:1fr;gap:6px}.sn-side{flex-direction:row;align-items:center;gap:8px}.sn-turn{padding-inline-start:0}.sn-note{padding-inline-start:0}.sn-notice{min-width:0}}
 `
 
     /**
@@ -240,6 +270,15 @@ html body [class*="_markdown_"][class] .katex[data-sn-tex]::before{content:"$" a
 
     /** Most lines a code preview keeps before the disclosure. */
     const CODE_PREVIEW_LINES = 8
+
+    /** Counter behind the disclosure ids allocated by `useStableId`. */
+    let idSeed = 0
+
+    /** How long the pending state waits before it admits nothing is coming. */
+    const STALL_MS = 8000
+
+    /** Quiet period a prose block must hold before its stray markers are rebuilt. */
+    const BOLD_QUIET_MS = 400
 
     /**
      * Switch the active dictionary language.
@@ -394,12 +433,37 @@ html body [class*="_markdown_"][class] .katex[data-sn-tex]::before{content:"$" a
     }
 
     /**
-     * Format a recorded timestamp as a clock reading.
+     * Format a recorded timestamp for the side rail.
+     *
+     * Seconds are dropped here on purpose: a burst of tool calls shares one
+     * second, so the finest reading repeats down the rail without telling the
+     * reader anything. The exact time stays in the element's `title` and in the
+     * exported Markdown.
+     *
+     * @param time Milliseconds since the epoch.
+     * @returns `HH:MM`, or an empty string.
+     */
+    function clock(time) {
+      return clockReading(time).slice(0, 5)
+    }
+
+    /**
+     * Format a recorded timestamp down to the second.
      *
      * @param time Milliseconds since the epoch.
      * @returns `HH:MM:SS`, or an empty string.
      */
-    function clock(time) {
+    function clockExact(time) {
+      return clockReading(time)
+    }
+
+    /**
+     * Format a recorded timestamp.
+     *
+     * @param time Milliseconds since the epoch.
+     * @returns `HH:MM:SS`, or an empty string.
+     */
+    function clockReading(time) {
       if (typeof time !== 'number' || !Number.isFinite(time) || time <= 0) return ''
       const date = new Date(time)
       if (Number.isNaN(date.getTime())) return ''
@@ -414,7 +478,7 @@ html body [class*="_markdown_"][class] .katex[data-sn-tex]::before{content:"$" a
      * @returns A leading separator plus the clock reading, or an empty string.
      */
     function stamp(time) {
-      const value = clock(time)
+      const value = clockExact(time)
       return value === '' ? '' : ` · ${value}`
     }
 
@@ -789,7 +853,7 @@ html body [class*="_markdown_"][class] .katex[data-sn-tex]::before{content:"$" a
       const value = clock(time)
       return h('div', { key: 'side', className: 'sn-side' }, [
         h('span', { key: 'role', className: `sn-role ${roleClass}` }, role),
-        value === '' ? null : h('span', { key: 'clock', className: 'sn-clock' }, value),
+        value === '' ? null : h('span', { key: 'clock', className: 'sn-clock', title: clockExact(time) }, value),
       ])
     }
 
@@ -812,6 +876,25 @@ html body [class*="_markdown_"][class] .katex[data-sn-tex]::before{content:"$" a
     }
 
     /**
+     * Allocate one stable DOM id per mounted component.
+     *
+     * `aria-controls` needs an id that survives re-renders. A counter read once
+     * into a ref does that without depending on `useId`, which the Host's React
+     * may predate.
+     *
+     * @param prefix Id prefix.
+     * @returns The component's id.
+     */
+    function useStableId(prefix) {
+      const ref = React.useRef('')
+      if (ref.current === '') {
+        idSeed += 1
+        ref.current = `${prefix}-${idSeed}`
+      }
+      return ref.current
+    }
+
+    /**
      * Monospace block with a disclosure for a payload that does not fit.
      *
      * The collapsed state renders a shortened excerpt, not the whole text behind
@@ -826,10 +909,11 @@ html body [class*="_markdown_"][class] .katex[data-sn-tex]::before{content:"$" a
       const t = props.t
       const text = props.text
       const [open, setOpen] = React.useState(false)
+      const id = useStableId('sn-code')
       const long = text.length > CODE_PREVIEW || text.split('\n').length > CODE_PREVIEW_LINES
       if (!long) return h('pre', { className: 'sn-code' }, text)
       return h('div', { className: 'sn-content' }, [
-        h('pre', { key: 'code', className: open ? 'sn-code sn-code-open' : 'sn-code' }, open ? text : previewOf(text)),
+        h('pre', { key: 'code', id, className: open ? 'sn-code sn-code-open' : 'sn-code' }, open ? text : previewOf(text)),
         h(
           'button',
           {
@@ -838,6 +922,7 @@ html body [class*="_markdown_"][class] .katex[data-sn-tex]::before{content:"$" a
             className: 'sn-toggle',
             onClick: () => setOpen(!open),
             'aria-expanded': open,
+            'aria-controls': id,
           },
           open ? t('showLess') : t('showMore'),
         ),
@@ -847,6 +932,9 @@ html body [class*="_markdown_"][class] .katex[data-sn-tex]::before{content:"$" a
     /**
      * Message text with a disclosure for very long injected content.
      *
+     * The collapsed state caps on whole lines and fades at the bottom, so the
+     * reader sees "there is more" instead of a half-sliced line.
+     *
      * @param props Text and the translator.
      * @returns A React element.
      */
@@ -854,9 +942,12 @@ html body [class*="_markdown_"][class] .katex[data-sn-tex]::before{content:"$" a
       const t = props.t
       const text = props.text
       const [open, setOpen] = React.useState(false)
+      const id = useStableId('sn-message')
       if (text.length <= LONG_TEXT) return h('p', { className: 'sn-text' }, text)
       return h('div', { className: 'sn-content' }, [
-        h('p', { key: 'text', className: open ? 'sn-text' : 'sn-text sn-clamped' }, text),
+        h('div', { key: 'text', id, className: open ? '' : 'sn-clamped' }, [
+          h('p', { key: 'body', className: 'sn-text' }, text),
+        ]),
         h(
           'button',
           {
@@ -865,6 +956,7 @@ html body [class*="_markdown_"][class] .katex[data-sn-tex]::before{content:"$" a
             className: 'sn-toggle',
             onClick: () => setOpen(!open),
             'aria-expanded': open,
+            'aria-controls': id,
           },
           open ? t('showLess') : t('showMore'),
         ),
@@ -883,7 +975,11 @@ html body [class*="_markdown_"][class] .katex[data-sn-tex]::before{content:"$" a
       const isUser = row.k === 'user'
       const label = isUser ? t('roleUser') : t('roleAssistant')
       const content = [
-        h(MessageText, { key: 'text', t, text: row.text === '' ? '—' : row.text }),
+        // An assistant reply can carry only tool calls; a lone dash there reads
+        // as a lost character, so the empty case names itself.
+        row.text === ''
+          ? h('span', { key: 'text', className: 'sn-empty-line' }, t('noText'))
+          : h(MessageText, { key: 'text', t, text: row.text }),
       ]
       if (!isUser && row.interrupted === true) {
         content.push(h('div', { key: 'badge', className: 'sn-toolhead' }, [
@@ -985,6 +1081,8 @@ html body [class*="_markdown_"][class] .katex[data-sn-tex]::before{content:"$" a
       const t = useT()
       const data = normalize(readProjection(props))
       const [notice, setNotice] = React.useState('')
+      const [noticeState, setNoticeState] = React.useState('')
+      const [stalled, setStalled] = React.useState(false)
       // The Chat snapshot is only consulted for tool payloads the projection
       // truncated. Reading it whole (and memoizing off that reference) keeps the
       // selector stable, which a per-call Map would not be.
@@ -994,19 +1092,36 @@ html body [class*="_markdown_"][class] .katex[data-sn-tex]::before{content:"$" a
 
       React.useEffect(() => {
         if (notice === '') return undefined
-        const timer = setTimeout(() => setNotice(''), 1800)
+        const timer = setTimeout(() => {
+          setNotice('')
+          setNoticeState('')
+        }, 1800)
         return () => clearTimeout(timer)
       }, [notice])
 
+      // A projection that registered but never published looks exactly like one
+      // still folding. After a few seconds the waiting copy says which it is,
+      // instead of leaving the reader in front of "collecting…" forever.
+      const pending = data === null
+      React.useEffect(() => {
+        if (!pending) return undefined
+        const timer = setTimeout(() => setStalled(true), STALL_MS)
+        return () => clearTimeout(timer)
+      }, [pending])
+
       const rows = data === null ? [] : data.rows
       const canCopy = data !== null && rows.length > 0
+      const showNotice = React.useCallback(
+        (ok) => {
+          setNotice(ok ? t('copied') : t('copyFailed'))
+          setNoticeState(ok ? 'ok' : 'failed')
+        },
+        [t],
+      )
       const onCopy = React.useCallback(() => {
         if (data === null) return
-        writeClipboard(toMarkdown(data, t, texts)).then(
-          (ok) => setNotice(ok ? t('copied') : t('copyFailed')),
-          () => setNotice(t('copyFailed')),
-        )
-      }, [data, t, texts])
+        writeClipboard(toMarkdown(data, t, texts)).then(showNotice, () => showNotice(false))
+      }, [data, t, texts, showNotice])
 
       const head = h('header', { key: 'head', className: 'sn-head' }, [
         h('div', { key: 'titles', className: 'sn-titles' }, [
@@ -1019,6 +1134,17 @@ html body [class*="_markdown_"][class] .katex[data-sn-tex]::before{content:"$" a
           statPill('tools', t('statTools'), data === null ? '—' : data.tools),
           statPill('errors', t('statErrors'), data === null ? '—' : data.errors),
           h(
+            'span',
+            {
+              key: 'notice',
+              className: 'sn-notice',
+              role: 'status',
+              'aria-live': 'polite',
+              ...(noticeState === '' ? {} : { 'data-state': noticeState }),
+            },
+            notice,
+          ),
+          h(
             'button',
             {
               key: 'copy',
@@ -1028,14 +1154,20 @@ html body [class*="_markdown_"][class] .katex[data-sn-tex]::before{content:"$" a
               disabled: !canCopy,
               'aria-label': t('copy'),
             },
-            notice === '' ? t('copy') : notice,
+            t('copy'),
           ),
         ]),
       ])
 
       let body
       if (data === null) {
-        body = h('div', { key: 'body', className: 'sn-body' }, emptyState({ title: t('waiting'), text: t('waitHint') }))
+        body = h(
+          'div',
+          { key: 'body', className: 'sn-body' },
+          stalled
+            ? emptyState({ title: t('stalled'), text: t('stalledHint') })
+            : emptyState({ title: t('waiting'), text: t('waitHint') }),
+        )
       } else if (rows.length === 0) {
         body = h('div', { key: 'body', className: 'sn-body' }, emptyState({ title: t('empty'), text: t('emptyHint') }))
       } else {
@@ -1081,6 +1213,141 @@ html body [class*="_markdown_"][class] .katex[data-sn-tex]::before{content:"$" a
      */
     const PROSE_MATH = /[\u2e80-\u9fff\uf900-\ufaff\uff00-\uffef\u3000-\u303f]/
 
+    /** Strong-emphasis marker, as the renderer leaves it when it refuses to open. */
+    const BOLD_MARK = '**'
+
+    /**
+     * Whether the text between two markers is prose the author meant to embolden.
+     *
+     * @param inner Text between the markers.
+     * @returns `true` when the pair is worth rebuilding.
+     */
+    function usableBold(inner) {
+      return inner !== '' && inner.trim() === inner && !inner.startsWith('*') && !inner.endsWith('*')
+    }
+
+    /**
+     * Split a text run that still carries literal `**` markers.
+     *
+     * CommonMark only lets a delimiter run open when it is left-flanking:
+     * not followed by whitespace, and — when followed by punctuation — preceded
+     * by whitespace or punctuation. Chinese prose breaks that rule constantly,
+     * because it puts punctuation right after the opening run and a letter right
+     * before it: `变**「硬件兑现」**——`. micromark is right to leave the markers
+     * alone; the author still meant bold, so the pair is rebuilt here.
+     *
+     * A run with an odd marker count, an empty pair, a pair whose content starts
+     * or ends with whitespace (`用 ** 表示通配符`), or a nested `***` is left as
+     * text — those are the cases where the markers are more likely content than
+     * markup.
+     *
+     * @param text Text content of one node.
+     * @returns Ordered segments, or `null` when nothing can be paired.
+     */
+    function pairBold(text) {
+      if (typeof text !== 'string' || !text.includes(BOLD_MARK)) return null
+      const parts = []
+      let cursor = 0
+      while (cursor <= text.length) {
+        const open = text.indexOf(BOLD_MARK, cursor)
+        if (open < 0) break
+        const close = text.indexOf(BOLD_MARK, open + BOLD_MARK.length)
+        if (close < 0) break
+        const inner = text.slice(open + BOLD_MARK.length, close)
+        if (!usableBold(inner)) {
+          // Keep the marker as text and keep looking past it.
+          cursor = open + BOLD_MARK.length
+          continue
+        }
+        if (open > cursor) parts.push({ text: text.slice(cursor, open), bold: false })
+        parts.push({ text: inner, bold: true })
+        cursor = close + BOLD_MARK.length
+      }
+      if (cursor < text.length) parts.push({ text: text.slice(cursor), bold: false })
+      return parts.some((part) => part.bold) ? parts : null
+    }
+
+    /** Prose containers whose text is markup or code, never emphasis. */
+    const BOLD_SKIP = 'pre,code,kbd,samp,script,style,textarea,[data-sn-bold],[data-sn-measure]'
+
+    /** Elements that hold one run of prose; markers never pair across them. */
+    const BOLD_BLOCKS = 'p,li,h1,h2,h3,h4,h5,h6,td,th,dt,dd,figcaption'
+
+    /**
+     * Rebuild the literal `**` pairs a prose container still carries.
+     *
+     * The markers do not always sit in one text node: a run the parser refused
+     * to open can leave its two markers on either side of a `<strong>` it did
+     * open (`变成**「硬件兑现」**：…定性上这是**换挡**——`). Pairing therefore
+     * works on the whole block's text and rewraps the range with a Range, which
+     * keeps whatever inline markup sits between the markers inside the result.
+     *
+     * Markers are only paired inside one block, and the inserted `<strong>`
+     * carries `data-sn-bold` so a later pass — including this plugin's own
+     * observer — can tell repaired markup from prose.
+     *
+     * @param root Element to repair.
+     * @returns How many marker pairs were rebuilt.
+     */
+    function repairBoldDom(root) {
+      if (root === null || root === undefined || typeof root.nodeType !== 'number') return 0
+      if (typeof document === 'undefined' || typeof document.createTreeWalker !== 'function') return 0
+      // NodeFilter.SHOW_TEXT is 4; the constant is not always a global here.
+      const walker = document.createTreeWalker(root, 4)
+      const groups = new Map()
+      for (let node = walker.nextNode(); node !== null; node = walker.nextNode()) {
+        if (typeof node.data !== 'string' || !node.data.includes(BOLD_MARK)) continue
+        const parent = node.parentElement
+        if (parent === null || parent.closest(BOLD_SKIP) !== null) continue
+        const block = parent.closest(BOLD_BLOCKS)
+        if (block === null) continue
+        const marks = groups.get(block) ?? []
+        let at = node.data.indexOf(BOLD_MARK)
+        while (at >= 0) {
+          marks.push({ node, index: at })
+          at = node.data.indexOf(BOLD_MARK, at + BOLD_MARK.length)
+        }
+        groups.set(block, marks)
+      }
+      let repaired = 0
+      for (const marks of groups.values()) {
+        for (let index = 0; index + 1 < marks.length; index += 2) {
+          if (repairedInline(marks[index], marks[index + 1])) repaired += 1
+        }
+      }
+      return repaired
+    }
+
+    /**
+     * Rebuild one marker pair as `<strong>`, wherever its content sits.
+     *
+     * @param open Opening marker position.
+     * @param close Closing marker position.
+     * @returns Whether the pair was rebuilt.
+     */
+    function repairedInline(open, close) {
+      const range = document.createRange()
+      range.setStart(open.node, open.index + BOLD_MARK.length)
+      range.setEnd(close.node, close.index)
+      const inner = range.toString()
+      if (!usableBold(inner)) return false
+      // Drop the closing marker first; removing it cannot move the opening one.
+      // In one node the opening removal then shifts the end position left too.
+      const startNode = open.node
+      const endNode = close.node
+      const startIndex = open.index
+      const endIndex = endNode === startNode ? close.index - BOLD_MARK.length : close.index
+      close.node.deleteData(close.index, BOLD_MARK.length)
+      open.node.deleteData(open.index, BOLD_MARK.length)
+      range.setStart(startNode, startIndex)
+      range.setEnd(endNode, endIndex)
+      const strong = document.createElement('strong')
+      strong.setAttribute('data-sn-bold', '')
+      strong.appendChild(range.extractContents())
+      range.insertNode(strong)
+      return true
+    }
+
     /**
      * Copy each table header onto its cells, record the column count, and mark
      * prose that the renderer mistook for math.
@@ -1107,6 +1374,16 @@ html body [class*="_markdown_"][class] .katex[data-sn-tex]::before{content:"$" a
         const watched = new WeakSet()
         const queued = new Set()
         const maths = new Set()
+        const bolds = new Set()
+        // Last text a prose block was seen with, so a leftover marker that cannot
+        // be paired (`** 开口未闭`) is not re-examined until the text changes.
+        const boldSeen = new WeakMap()
+        // The product owns these text nodes with its own reconciler: pulling one
+        // out from under a paragraph that is still streaming would leave React
+        // writing into a detached node. Repair therefore waits for the block to
+        // go quiet first.
+        const boldTimers = new Set()
+        const boldTimeouts = new WeakMap()
 
         /**
          * Find the scrollport a table lives in, so a layout change can keep the
@@ -1264,8 +1541,49 @@ html body [class*="_markdown_"][class] .katex[data-sn-tex]::before{content:"$" a
         }
 
         /**
-         * Collect the tables and formulas a mutation touched, so a frame's work
-         * stays proportional to what changed instead of the whole transcript.
+         * Repair one prose block once it stops changing.
+         *
+         * Each touch of the block restarts the wait, so a paragraph that is still
+         * streaming is never rewritten mid-flight; the repair lands on the
+         * settled text.
+         *
+         * @param element Block that still carries a marker.
+         */
+        function settleBold(element) {
+          const previous = boldTimeouts.get(element)
+          if (previous !== undefined) clearTimeout(previous)
+          const timer = setTimeout(() => {
+            boldTimeouts.delete(element)
+            boldTimers.delete(timer)
+            if (!element.isConnected) return
+            repairBoldDom(element)
+            boldSeen.set(element, element.textContent)
+          }, BOLD_QUIET_MS)
+          boldTimeouts.set(element, timer)
+          boldTimers.add(timer)
+        }
+
+        /**
+         * Queue one prose block that still carries a bold marker.
+         *
+         * Reading `textContent` per mutation is cheap next to a layout, and the
+         * snapshot stops an unpaired marker from being re-examined every time a
+         * neighbour changes.
+         *
+         * @param element Container touched by a mutation.
+         */
+        function markBold(element) {
+          if (element.closest(BOLD_SKIP) !== null) return
+          const text = element.textContent
+          if (text === null || !text.includes(BOLD_MARK)) return
+          if (boldSeen.get(element) === text) return
+          bolds.add(element)
+        }
+
+        /**
+         * Collect the tables, formulas and bold markers a mutation touched, so a
+         * frame's work stays proportional to what changed instead of the whole
+         * transcript.
          *
          * @param node Added or changed node.
          */
@@ -1274,6 +1592,7 @@ html body [class*="_markdown_"][class] .katex[data-sn-tex]::before{content:"$" a
           if (element === undefined || element === null) return
           if (element.closest('[data-sn-measure]') !== null) return
           if (element.closest('[class*="_markdown_"]') === null) return
+          markBold(element)
           if (element.matches('.katex')) maths.add(element)
           for (const formula of element.querySelectorAll('.katex')) maths.add(formula)
           const table = element.closest('table')
@@ -1291,19 +1610,27 @@ html body [class*="_markdown_"][class] .katex[data-sn-tex]::before{content:"$" a
           queued.clear()
           const formulas = Array.from(maths)
           maths.clear()
+          const prose = Array.from(bolds)
+          bolds.clear()
           for (const table of targets) {
             if (table.isConnected) label(table)
           }
           for (const formula of formulas) {
             if (formula.isConnected) markProseMath(formula)
           }
+          for (const element of prose) {
+            if (element.isConnected) settleBold(element)
+          }
         }
         const scanAll = () => {
           for (const table of document.querySelectorAll('[class*="_markdown_"] table')) label(table)
           for (const formula of document.querySelectorAll('[class*="_markdown_"] .katex')) markProseMath(formula)
+          for (const root of document.querySelectorAll('[class*="_markdown_"]')) {
+            if (root.textContent !== null && root.textContent.includes(BOLD_MARK)) settleBold(root)
+          }
         }
         const schedule = () => {
-          if (frame !== 0 || (queued.size === 0 && maths.size === 0)) return
+          if (frame !== 0 || (queued.size === 0 && maths.size === 0 && bolds.size === 0)) return
           if (typeof requestAnimationFrame === 'function') frame = requestAnimationFrame(scan)
           else frame = setTimeout(scan, 16)
         }
@@ -1337,6 +1664,8 @@ html body [class*="_markdown_"][class] .katex[data-sn-tex]::before{content:"$" a
             if (typeof cancelAnimationFrame === 'function') cancelAnimationFrame(frame)
             else clearTimeout(frame)
           }
+          for (const timer of boldTimers) clearTimeout(timer)
+          boldTimers.clear()
         }
       }, [])
     }
@@ -1444,6 +1773,8 @@ html body [class*="_markdown_"][class] .katex[data-sn-tex]::before{content:"$" a
       installChatActions(ctx)
     }
 
-    return { name: NAMESPACE, inject: ['slots', 'locale'], apply }
+    // `__pairBold` and `__repairBold` are the pure and DOM halves of the marker
+    // repair, exposed so the checks can pin them without a React tree.
+    return { name: NAMESPACE, inject: ['slots', 'locale'], apply, __pairBold: pairBold, __repairBold: repairBoldDom }
   },
 })
